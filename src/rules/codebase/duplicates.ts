@@ -1,0 +1,153 @@
+import type { FunctionInfo } from "../../index/functions.ts";
+import { JSX_MARKER, LITERAL_PREFIX } from "../../index/shape.ts";
+
+export type Confidence = "sure" | "likely" | "maybe";
+
+export interface DuplicateGroup {
+  kind: "exact" | "similar" | "cross-language";
+  confidence: Confidence;
+  functions: FunctionInfo[];
+  sharedValues: string[]; // string values the copies have in common: the evidence
+}
+
+// Repeated setup in tests is usually deliberate, so tests are left out.
+const TEST_FILE = /(^|\/)(__tests__|tests?|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^/]*\.py$|_test\.py$/;
+
+const MIN_TOKENS = 40; // smaller bodies are too generic to call copies...
+const MIN_TOKENS_MANY_COPIES = 15; // ...unless the same small body shows up in 3+ files
+const SAME_STRUCTURE = 0.8;
+const DRIFTED_STRUCTURE = 0.45;
+const MARKUP_HEAVY = 0.03; // icons and static pages look alike by nature
+const MAX_LINES_SIMILAR = 120; // whole pages and module factories share vocabulary, not logic
+
+// A function and a helper defined inside it naturally share code.
+const nested = (a: FunctionInfo, b: FunctionInfo) =>
+  a.file === b.file && ((a.startLine <= b.startLine && a.endLine >= b.endLine) || (b.startLine <= a.startLine && b.endLine >= a.endLine));
+const key = (fn: FunctionInfo) => fn.shape.join("\u0001");
+const family = (fn: FunctionInfo) => (fn.language === "python" ? "python" : "js");
+const markupHeavy = (fn: FunctionInfo) => fn.shape.filter((t) => t === JSX_MARKER).length / fn.shape.length > MARKUP_HEAVY;
+
+// Structure only: names and values blanked out, in overlapping 3-token windows.
+function structure(fn: FunctionInfo): Set<string> {
+  const t = fn.shape.map((s) => (s.startsWith(LITERAL_PREFIX) ? "lit" : s.startsWith("$") ? "id" : s));
+  const set = new Set<string>();
+  for (let i = 0; i + 3 <= t.length; i++) set.add(`${t[i]} ${t[i + 1]} ${t[i + 2]}`);
+  return set;
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  let shared = 0;
+  for (const x of a) if (b.has(x)) shared++;
+  return shared / (a.size + b.size - shared || 1);
+}
+
+// Meaningful string values, case-folded so "Just now" and "just now" match.
+function values(fn: FunctionInfo): Set<string> {
+  const out = new Set<string>();
+  for (const t of fn.shape) {
+    if (!t.startsWith(LITERAL_PREFIX)) continue;
+    const v = t.slice(LITERAL_PREFIX.length).trim().toLowerCase();
+    if (v.length >= 4 && !/^-?[\d.]+$/.test(v)) out.add(v);
+  }
+  return out;
+}
+
+// Wording ("just now", "Connection failed.") says more than one-word codes ("send", "active"),
+// which are often just a shared vocabulary of statuses or types.
+const distinctive = (v: string) => /[^\w]/.test(v) || v.length >= 12;
+
+// "_strip_json_state" and "stripJsonState" both become "strip json state".
+const nameWords = (name: string) =>
+  name.replace(/^_+/, "").split(/_|(?<=[a-z0-9])(?=[A-Z])/).map((w) => w.toLowerCase()).join(" ");
+
+class Clusters {
+  private parent = new Map<number, number>();
+  find(i: number): number {
+    const p = this.parent.get(i) ?? i;
+    if (p === i) return i;
+    const root = this.find(p);
+    this.parent.set(i, root);
+    return root;
+  }
+  join(a: number, b: number) { this.parent.set(this.find(a), this.find(b)); }
+  groups(ids: number[]): number[][] {
+    const out = new Map<number, number[]>();
+    for (const i of ids) out.set(this.find(i), [...(out.get(this.find(i)) ?? []), i]);
+    return [...out.values()].filter((g) => g.length > 1);
+  }
+}
+
+export function findDuplicates(all: FunctionInfo[]): DuplicateGroup[] {
+  const fns = all.filter((f) => !TEST_FILE.test(f.file));
+  const groups: DuplicateGroup[] = [];
+
+  // 1. Exact copies: same structure, same values, only names differ.
+  const byShape = new Map<string, FunctionInfo[]>();
+  for (const fn of fns) if (fn.shape.length >= MIN_TOKENS_MANY_COPIES) byShape.set(key(fn), [...(byShape.get(key(fn)) ?? []), fn]);
+  for (const copies of byShape.values()) {
+    const files = new Set(copies.map((f) => f.file)).size;
+    if (copies.length > 1 && (copies[0]!.shape.length >= MIN_TOKENS || files >= 3)) {
+      groups.push({ kind: "exact", confidence: "sure", functions: copies, sharedValues: [...values(copies[0]!)] });
+    }
+  }
+
+  // 2. Similar copies, compared one representative per exact group.
+  const reps = [...byShape.values()].map((c) => c[0]!).filter(
+    (f) => f.shape.length >= MIN_TOKENS && !markupHeavy(f) && f.endLine - f.startLine < MAX_LINES_SIMILAR,
+  );
+  const shapes = reps.map(structure);
+  const vals = reps.map(values);
+  const uses = new Map<string, number>();
+  for (const fn of fns) for (const v of values(fn)) uses.set(v, (uses.get(v) ?? 0) + 1);
+  // A value used all over the repo ("Content-Type") proves nothing. Scaled to repo size,
+  // because a value copied 10 times is exactly what we're looking for.
+  const rareMaxUses = Math.max(3, Math.ceil(fns.length * 0.02));
+  const likely = new Clusters();
+  const maybe = new Clusters();
+  const evidence = new Map<number, Set<string>>();
+  for (let i = 0; i < reps.length; i++) {
+    for (let j = i + 1; j < reps.length; j++) {
+      const [a, b] = [reps[i]!.shape.length, reps[j]!.shape.length];
+      if (Math.min(a, b) / Math.max(a, b) < 0.6 || nested(reps[i]!, reps[j]!)) continue;
+      const sim = jaccard(shapes[i]!, shapes[j]!);
+      if (sim < DRIFTED_STRUCTURE) continue;
+      const shared = [...vals[i]!].filter((v) => vals[j]!.has(v));
+      const rare = shared.filter((v) => (uses.get(v) ?? 0) <= rareMaxUses);
+      const telling = rare.filter(distinctive);
+      if (telling.length >= 3 || (sim >= SAME_STRUCTURE && telling.length >= 1)) {
+        likely.join(i, j); // same purpose: they share specific wording
+      } else if (sim >= SAME_STRUCTURE || rare.length >= 3) {
+        maybe.join(i, j); // same structure, different values: could share a helper
+      } else continue;
+      for (const k of [i, j]) evidence.set(k, new Set([...(evidence.get(k) ?? []), ...telling]));
+    }
+  }
+  const ids = reps.map((_, i) => i);
+  const expand = (members: number[]) => members.flatMap((i) => byShape.get(key(reps[i]!))!);
+  const likelyGroups = likely.groups(ids);
+  for (const members of likelyGroups) {
+    groups.push({ kind: "similar", confidence: "likely", functions: expand(members), sharedValues: [...(evidence.get(members[0]!) ?? [])] });
+  }
+  for (const members of maybe.groups(ids)) {
+    if (likelyGroups.some((g) => members.every((m) => g.includes(m)))) continue;
+    groups.push({ kind: "similar", confidence: "maybe", functions: expand(members), sharedValues: [] });
+  }
+
+  // 3. The same function written in JS and Python: same name, ideally the same values too.
+  const byName = new Map<string, FunctionInfo[]>();
+  for (const fn of fns) {
+    const words = nameWords(fn.name);
+    if (words.includes(" ") && fn.shape.length >= 20) byName.set(words, [...(byName.get(words) ?? []), fn]); // one-word names collide too often
+  }
+  for (const named of byName.values()) {
+    const js = named.filter((f) => family(f) === "js");
+    const py = named.filter((f) => family(f) === "python");
+    if (!js.length || !py.length) continue;
+    const pyValues = new Set(py.flatMap((f) => [...values(f)]));
+    const shared = [...new Set(js.flatMap((f) => [...values(f)]))].filter((v) => pyValues.has(v));
+    groups.push({ kind: "cross-language", confidence: shared.length >= 2 ? "likely" : "maybe", functions: [...js, ...py], sharedValues: shared });
+  }
+
+  const rank = { sure: 0, likely: 1, maybe: 2 };
+  return groups.sort((a, b) => rank[a.confidence] - rank[b.confidence] || b.functions.length - a.functions.length);
+}
