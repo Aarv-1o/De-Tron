@@ -15,6 +15,7 @@ const STRING_TEXT_TYPES = new Set(["string_fragment", "string_content", "escape_
 const QUOTE_TYPES = new Set(["'", '"', "`", "string_start", "string_end"]);
 
 export const LITERAL_PREFIX = "lit:";
+export const JSX_MARKER = "jsx";
 
 // The body as a token list where names don't matter but structure and literals do.
 // Two functions that differ only in what their variables are called get the same shape.
@@ -23,6 +24,8 @@ export function shapeOf(body: Node): string[] {
   const tokens: string[] = [];
   const visit = (node: Node): void => {
     if (node.type === "comment") return;
+    // One marker per JSX element, so markup-heavy functions (icons, static pages) can be told apart.
+    if (node.type === "jsx_element" || node.type === "jsx_self_closing_element") tokens.push(JSX_MARKER);
     if (LITERAL_TYPES.has(node.type) || STRING_TEXT_TYPES.has(node.type)) {
       tokens.push(LITERAL_PREFIX + node.text);
       return;
