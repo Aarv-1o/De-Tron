@@ -19,10 +19,22 @@ come from **the agent not knowing what already exists**, not from single bad lin
 | In V1 | Not in V1 |
 |---|---|
 | JS/TS (frontend + Node backend) and Python | Java, C, C++ (later, one at a time) |
-| Claude Code hooks first, then an MCP server for other agents | VS Code / editor UI |
+| Works with every agent (see below) | VS Code / editor UI |
 | Codebase checks + the line rules that passed our hand-check | Project planner, DB mind maps |
 | Safety layer (checkpoint, tests, type check, undo) | Security scanning (other tools do this) |
 | Change card | Our own paid agent |
+
+## Agent compatibility
+
+One core engine. Thin adapters on top, so adding an agent means adding a small adapter.
+
+| Layer | What it does | Works with |
+|---|---|---|
+| CLI (`detron scan`, `detron check`) | Any agent that can run a command can use it | Every agent |
+| MCP server | Tools like "find existing function" and "check my changes" | Claude Code, Cursor, Copilot, Codex, Gemini CLI, Windsurf, Cline… |
+| Hooks | Run automatically after every edit | Claude Code, Cursor, Codex, Gemini CLI |
+| Instruction files | `detron init` adds a short block to AGENTS.md / CLAUDE.md / Cursor rules | Every agent that reads them |
+| Git hook + CI | Checks every commit, whoever wrote it | Everyone |
 
 ## How it works
 
