@@ -4,7 +4,7 @@ import type { Confidence, DuplicateGroup } from "../rules/codebase/duplicates.ts
 const ADVICE: Record<DuplicateGroup["kind"], Partial<Record<Confidence, string>>> = {
   exact: { sure: "Keep one, import it everywhere else." },
   similar: {
-    likely: "These do the same job but have drifted apart. Pick the right behavior, keep one.",
+    likely: "These do the same job. If they should behave the same, keep one.",
     maybe: "Same structure, different values. Could become one helper with a parameter.",
   },
   "cross-language": {
