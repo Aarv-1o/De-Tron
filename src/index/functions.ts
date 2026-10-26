@@ -1,5 +1,6 @@
 import type { Node } from "web-tree-sitter";
 import type { LanguageId, ParsedFile } from "../parse/parse.ts";
+import { shapeOf } from "./shape.ts";
 
 export interface FunctionInfo {
   name: string;
@@ -11,6 +12,7 @@ export interface FunctionInfo {
   className: string | undefined;
   exported: boolean; // JS/TS: exported from the module. Python: public top-level name.
   async: boolean;
+  shape: string[]; // see shapeOf: used to spot copies
 }
 
 const JS_FUNCTIONS = new Set([
@@ -127,6 +129,7 @@ export function extractFunctions(parsed: ParsedFile, file: string): FunctionInfo
         ? topLevel && !name.startsWith("_")
         : !className && (hasExportAncestor(node) || exportedNames.has(name)),
       async: node.children.some((c) => c.type === "async"),
+      shape: shapeOf(node.childForFieldName("body") ?? node),
     });
   }
   return found;
