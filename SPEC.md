@@ -107,6 +107,6 @@ tiny single-use helpers, assign-then-return.
 - **tree-sitter** for parsing all languages the same way.
 - **git CLI** for checkpoints, history and hotspots.
 
-## Open questions
+## License
 
-- License (open source? which one?)
+MIT. See [LICENSE](LICENSE).
