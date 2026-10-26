@@ -31,11 +31,15 @@ function location(fn: FunctionInfo): string {
 
 function quote(value: string): string {
   const oneLine = value.replace(/\s+/g, " ");
-  return `"${oneLine.length > 40 ? `${oneLine.slice(0, 40)}…` : oneLine}"`;
+  const short = oneLine.length > 40 ? `${oneLine.slice(0, 40)}…` : oneLine;
+  return short.includes('"') ? `'${short}'` : `"${short}"`;
 }
 
 export function formatDuplicates(groups: DuplicateGroup[], showHints: boolean): string {
   const lines: string[] = [];
+  // A drifted group often contains an exact group too: point back to it instead of hiding either.
+  const sureNumber = new Map<FunctionInfo, number>();
+  groups.filter((g) => g.confidence === "sure").forEach((g, i) => g.functions.forEach((f) => sureNumber.set(f, i + 1)));
   for (const level of ["sure", "likely", "maybe"] as const) {
     const inLevel = groups.filter((g) => g.confidence === level);
     if (!inLevel.length) continue;
@@ -46,7 +50,10 @@ export function formatDuplicates(groups: DuplicateGroup[], showHints: boolean): 
     lines.push(`${HEADINGS[level]} (${inLevel.length})`, "");
     inLevel.forEach((group, i) => {
       lines.push(`  ${i + 1}. ${title(group)}`);
-      for (const fn of group.functions) lines.push(`     ${location(fn)}`);
+      for (const fn of group.functions) {
+        const seeAlso = level !== "sure" && sureNumber.has(fn) ? `  (see Copies #${sureNumber.get(fn)})` : "";
+        lines.push(`     ${location(fn)}${seeAlso}`);
+      }
       if (group.sharedValues.length) lines.push(`     Same wording: ${group.sharedValues.slice(0, 3).map(quote).join(", ")}`);
       lines.push(`     → ${ADVICE[group.kind][level] ?? ""}`, "");
     });
