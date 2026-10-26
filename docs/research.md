@@ -73,3 +73,20 @@ Repos: Escrows-AI (30k lines, JS/TS), Travscape (3.4k, Python + JS), BlogManager
 - API paths built from constants (`${API}/usage`) missed by naive string matching.
 - LangGraph node functions whose `state` param is required by the framework.
 - `async` handlers that must return a promise to match an interface.
+
+## Duplicate detection v1 results (Oct 2026)
+
+Hand-checked on the 3 repos:
+
+- **Sure (exact copies):** 11 of 11 real. Includes `escapeRegex` ×7 and `timeAgo` ×4.
+- **Likely (similar + shared wording):** ~14 of 17 real. Found all 7 `timeAgo`
+  versions, including the 3 drifted ones. False alarms: data templates, symmetric
+  pairs like enroll/unenroll.
+- **Maybe (same structure, different values):** "could share a helper" hints,
+  e.g. fetchClients / fetchItems. Not checked for precision; never sent to agents automatically.
+
+What made the difference:
+- Comparing structure with every name blanked out (not just renamed).
+- Requiring shared *wording* ("just now", error messages), not shared one-word codes.
+- Judging how rare a value is relative to repo size: a value copied 10 times is the signal.
+- Skipping icons, whole pages, module factories (120+ lines) and nested helpers.
