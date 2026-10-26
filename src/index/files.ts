@@ -1,0 +1,50 @@
+import { execFile } from "node:child_process";
+import { readdir } from "node:fs/promises";
+import { join, relative, sep } from "node:path";
+import { promisify } from "node:util";
+import { detectLanguage } from "../parse/parse.ts";
+
+const run = promisify(execFile);
+
+// Used only outside git repos. Inside a repo, .gitignore decides.
+const SKIP_DIRS = new Set([
+  ".git", "node_modules", "dist", "build", "out", "coverage", ".next",
+  "__pycache__", ".venv", "venv", "env", ".mypy_cache", ".pytest_cache",
+]);
+
+function isSource(path: string): boolean {
+  // Minified bundles are generated, not written by anyone.
+  return detectLanguage(path) !== undefined && !/\.min\.(js|mjs|cjs)$/i.test(path);
+}
+
+async function gitFiles(root: string): Promise<string[] | undefined> {
+  try {
+    const { stdout } = await run(
+      "git",
+      ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+      { cwd: root, maxBuffer: 64 * 1024 * 1024 },
+    );
+    return stdout.split("\0").filter(Boolean);
+  } catch {
+    return undefined; // not a git repo, or git isn't installed: fall back to walking
+  }
+}
+
+async function walk(root: string, dir = root): Promise<string[]> {
+  const found: string[] = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!SKIP_DIRS.has(entry.name)) found.push(...(await walk(root, full)));
+    } else if (entry.isFile()) {
+      found.push(relative(root, full).split(sep).join("/"));
+    }
+  }
+  return found;
+}
+
+// Source files Detron can read, as sorted repo-relative paths with "/" separators.
+export async function listSourceFiles(root: string): Promise<string[]> {
+  const all = (await gitFiles(root)) ?? (await walk(root));
+  return all.filter(isSource).sort();
+}
