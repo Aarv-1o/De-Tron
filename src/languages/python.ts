@@ -2,7 +2,7 @@ import type { Node } from "web-tree-sitter";
 import type { FunctionInfo } from "../index/functions.ts";
 import type { ImportInfo } from "../index/usage.ts";
 import { commonInfo, descendants, enclosingClass, valueReferences } from "./nodes.ts";
-import { emptyApi } from "../rules/crossStack/types.ts";
+import { extractPythonApi } from "./pythonApi.ts";
 import type { LanguageSupport, Syntax } from "./types.ts";
 
 function paramsOf(node: Node): string[] {
@@ -100,7 +100,7 @@ export const python: LanguageSupport = {
   },
   unusedExportReason: "Nothing uses it.",
   runsInBrowser: () => false,
-  extractApi: () => emptyApi(),
+  extractApi: extractPythonApi,
 
   syntax,
 };
