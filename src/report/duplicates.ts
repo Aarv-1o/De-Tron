@@ -112,19 +112,3 @@ export function formatDuplicates(
   if (hidden) lines.push(hiddenNote(hidden), "");
   return lines.join("\n");
 }
-
-const where = ({ name, file, startLine, endLine, language }: FunctionInfo) => ({ name, file, startLine, endLine, language });
-
-// For agents and scripts: everything except the body shapes, which are internal.
-export function duplicatesToJson(groups: DuplicateGroup[], differences: Map<DuplicateGroup, CopyDifferences> = new Map()) {
-  return groups.map((g) => {
-    const diff = differences.get(g);
-    return {
-      kind: g.kind,
-      confidence: g.confidence,
-      sharedValues: g.sharedValues,
-      functions: g.functions.map(where),
-      ...(diff && { differences: { base: where(diff.base), copies: diff.copies.map((c) => ({ ...where(c.fn), changes: c.changes })) } }),
-    };
-  });
-}

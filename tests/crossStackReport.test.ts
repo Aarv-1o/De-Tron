@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { crossStackToJson, formatCrossStack } from "../src/report/crossStack.ts";
+import { formatCrossStack } from "../src/report/crossStack.ts";
 import type { CrossStack } from "../src/rules/crossStack/check.ts";
 import { parsePath } from "../src/rules/crossStack/paths.ts";
 
@@ -31,13 +31,4 @@ test("cross-stack report: says what it checked, or why it didn't", () => {
   assert.equal(formatCrossStack({ routes: 3, calls: 4, missing: [], unused: [] }, false), "No frontend/backend mismatches found (4 calls checked against 3 routes).\n");
   assert.equal(formatCrossStack({ routes: 0, calls: 4, missing: [], unused: [] }, false), "Frontend and backend: not checked (no API routes found in this repo).\n");
   assert.equal(formatCrossStack({ routes: 2, calls: 0, missing: [], unused: [] }, false), "Frontend and backend: not checked (no calls to its API found in this repo).\n");
-});
-
-test("cross-stack JSON: paths as written", () => {
-  const json = crossStackToJson(found);
-  assert.deepEqual(json.missing[0], {
-    kind: "missing-route", confidence: "likely", file: "src/a.ts", line: 4, method: "GET", path: "/api/user/…",
-    closest: { method: "GET", path: "/api/users/:id", file: "server/users.js", line: 5 },
-  });
-  assert.deepEqual(json.unused, [{ confidence: "likely", method: "DELETE", path: "/api/users/:id", file: "server/users.js", line: 9 }]);
 });

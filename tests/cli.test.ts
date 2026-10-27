@@ -23,12 +23,18 @@ test("scan prints copies found in a repo", async () => {
   assert.match(text, /Code hygiene|No code hygiene issues found/);
 });
 
-test("scan --json is valid JSON with the groups", async () => {
-  const { code, text } = await cli("scan", flagRepo, "--json");
-  assert.equal(code, 0);
-  const data = JSON.parse(text);
-  assert.ok(data.duplicates.some((g: { kind: string }) => g.kind === "cross-language"));
-  assert.deepEqual(Object.keys(data.deadCode).sort(), ["files", "functions", "packages"]);
+test("scan --json and --agent: the same findings, with what, why, fix, safety and how to check", async () => {
+  const json = await cli("scan", flagRepo, "--json");
+  assert.equal(json.code, 0);
+  const data = JSON.parse(json.text);
+  const copy = data.findings.find((f: { rule: string }) => f.rule === "cross-language-copy");
+  assert.ok(copy);
+  for (const key of ["id", "file", "line", "title", "evidence", "related", "why", "fix", "safety", "verify"]) assert.ok(key in copy, key);
+  const agent = await cli("scan", flagRepo, "--agent");
+  assert.match(agent.text, /^# Detron findings: /);
+  assert.match(agent.text, /## Same logic in two languages \(1\)\n\nWhy: .+\nSafety: ask the user first\n/);
+  assert.match(agent.text, /\nFix:\n1\. /);
+  assert.match(agent.text, /\nCheck: /);
 });
 
 test("help, unknown commands and missing folders", async () => {

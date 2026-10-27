@@ -66,13 +66,3 @@ export function formatDeadCode(found: DeadCode, showHints: boolean): string {
   if (hidden) lines.push(`  ${hiddenNote(hidden)}`, "");
   return `Dead code\n\n${lines.join("\n")}`;
 }
-
-export function deadCodeToJson(found: DeadCode) {
-  return {
-    packages: found.packages,
-    files: found.files,
-    functions: found.functions.map(({ fn, confidence, reason }) => ({
-      name: fn.name, file: fn.file, startLine: fn.startLine, endLine: fn.endLine, confidence, reason,
-    })),
-  };
-}

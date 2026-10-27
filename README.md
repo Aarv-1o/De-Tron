@@ -6,7 +6,7 @@ It watches what your agent writes, catches duplicate code, dead code and bloat,
 gets the agent to clean it up, proves nothing broke, and explains what changed.
 
 > Status: early build. Not on npm yet. Works today: copied code, dead code, frontend/backend
-> mismatches, code hygiene and hotspots.
+> mismatches, database checks, code hygiene and hotspots.
 
 ## Try it
 
@@ -18,7 +18,9 @@ npm run detron -- scan path/to/your/repo
 ```
 
 - `--all` also shows hints (less certain findings)
-- `--json` prints machine-readable output for agents and scripts
+- `--agent` prints findings as steps an AI agent can follow: what, why, how to fix, whether
+  it's safe to do alone, and how to check
+- `--json` prints the same findings, machine-readable
 
 It finds:
 
@@ -28,6 +30,9 @@ It finds:
   calls with the wrong method, routes nothing calls. Backends: Express, Koa, Hono, Fastify,
   NestJS, Next.js, FastAPI, Flask, Django/DRF. Frontends: fetch, axios (with base URLs),
   apisauce (React Native), superagent, generated clients, Vite's proxy
+- **Database:** money stored as floats, queries inside loops (N+1), trees walked one query
+  per level, INSERT without columns; hints for SELECT *, ORDER BY RAND() and `LIKE '%x%'`
+  search. Mongoose, Sequelize, TypeORM, Prisma, Knex, Django, SQLAlchemy, SQLModel, raw SQL
 - **Hotspots:** complex files that change often (from git history), so you know where to
   clean first. Needs a git clone, not a downloaded zip
 - **Code hygiene:** errors that are ignored or only logged, commented-out code, comments that

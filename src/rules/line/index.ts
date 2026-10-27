@@ -1,12 +1,13 @@
 import { supportFor } from "../../languages/index.ts";
 import type { ParsedFile } from "../../parse/parse.ts";
 import { catchRules } from "./catches.ts";
+import { databaseRules } from "../database/index.ts";
 import { commentRules } from "./comments.ts";
 import type { LineFinding, LineRule } from "./types.ts";
 
 export type { LineFinding } from "./types.ts";
 
-const RULES: LineRule[] = [catchRules, commentRules];
+const RULES: LineRule[] = [catchRules, commentRules, databaseRules];
 
 export async function runLineRules(parsed: ParsedFile, file: string, imports: string[]): Promise<LineFinding[]> {
   const language = supportFor(parsed.language);

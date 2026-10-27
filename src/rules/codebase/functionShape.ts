@@ -40,7 +40,7 @@ export function findFunctionShapeIssues(functions: FunctionInfo[]): LineFinding[
     }
     const params = fn.params.filter((p) => !IGNORED_PARAMS.has(p) && !p.startsWith("*"));
     if (params.length >= MANY_PARAMS) {
-      found.push({ ...at, rule: "long-params", confidence: "maybe", message: `${fn.name}: ${params.length} parameters. Pass an object, or split it up.` });
+      found.push({ ...at, rule: "long-params", confidence: "maybe", message: `${fn.name}: ${params.length} parameters (${params.join(", ")}). Easy to pass in the wrong order: pass one object with named fields.` });
     }
   }
   return found;
