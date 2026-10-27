@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "detron": "node --import tsx src/cli/bin.ts",
     "test": "node --import tsx --test \"tests/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },

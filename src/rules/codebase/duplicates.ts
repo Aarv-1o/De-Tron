@@ -52,9 +52,9 @@ function values(fn: FunctionInfo): Set<string> {
   return out;
 }
 
-// Wording ("just now", "Connection failed.") says more than one-word codes ("send", "active"),
+// Wording ("just now", "Connection failed.") says more than codes ("send", "notify_broker"),
 // which are often just a shared vocabulary of statuses or types.
-const distinctive = (v: string) => /[^\w]/.test(v) || v.length >= 12;
+const distinctive = (v: string) => /[^\w]/.test(v);
 
 // "_strip_json_state" and "stripJsonState" both become "strip json state".
 const nameWords = (name: string) =>
