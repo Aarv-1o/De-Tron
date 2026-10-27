@@ -24,6 +24,8 @@ const ENTRY = new RegExp(
 // With file-based routing, pages are loaded by the framework.
 const ROUTING_FRAMEWORKS = ["next", "nuxt", "@remix-run/react", "@sveltejs/kit", "astro", "expo-router"];
 const ROUTED = /(^|\/)(pages|app|routes)\//;
+// @fastify/autoload loads every file in its folders (plugins/, routes/, and autohooks files).
+const AUTOLOADED = /(^|\/)(plugins|routes)\//;
 
 
 const stemOf = (file: string) => posix.basename(file).replace(/\.[^.]+$/, "");
@@ -43,6 +45,7 @@ export async function findUnusedFiles(index: RepoIndex): Promise<UnusedFile[]> {
   const texts = await readTexts(index.root, index.allFiles);
   const rootManifest = texts.get("package.json") ?? "";
   const routed = ROUTING_FRAMEWORKS.some((fw) => rootManifest.includes(`"${fw}"`));
+  const autoloaded = rootManifest.includes('"@fastify/autoload"');
 
   // Referenced by path in HTML, scripts, Dockerfiles, notebooks, or "api:app" for uvicorn.
   // Only distinctive forms count: a bare "api" or "blog" appears in almost any text.
@@ -61,7 +64,7 @@ export async function findUnusedFiles(index: RepoIndex): Promise<UnusedFile[]> {
 
   const unused: UnusedFile[] = [];
   for (const file of index.files) {
-    if (ENTRY.test(file) || isTestFile(file) || (routed && ROUTED.test(file))) continue;
+    if (ENTRY.test(file) || isTestFile(file) || (routed && ROUTED.test(file)) || (autoloaded && AUTOLOADED.test(file))) continue;
     const by = importers.get(importNameOf(file));
     if (by && [...by].some((f) => f !== file)) continue;
     if (mentionedElsewhere(file)) continue;

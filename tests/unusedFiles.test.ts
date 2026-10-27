@@ -51,3 +51,14 @@ test("Python apps and scripts, also when scanning the folder above the project",
     "proj/notes.md": "This blog explains the design.\n",
   }), ["likely proj/blog.py", "maybe proj/demo.py"]);
 });
+
+test("Fastify autoload: plugin and route files are loaded by folder, not imported", async () => {
+  const index = await buildIndex(await makeRepo({
+    "package.json": JSON.stringify({ dependencies: { fastify: "5.0.0", "@fastify/autoload": "6.0.0" } }),
+    "src/app.ts": `import AutoLoad from "@fastify/autoload";\nexport default async function app(f) { f.register(AutoLoad, { dir: "plugins" }); }\n`,
+    "src/plugins/session.ts": "export default async function session() {}\n",
+    "src/routes/api/autohooks.ts": "export default async function hooks() {}\n",
+    "src/lib/old.ts": "export const old = 1;\n",
+  }));
+  assert.deepEqual((await findUnusedFiles(index)).map((f) => f.file), ["src/lib/old.ts"]);
+});
