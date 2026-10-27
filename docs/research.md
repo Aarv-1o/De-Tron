@@ -107,3 +107,17 @@ Known gaps:
 - A file whose name is a common word (`blog.py`) counts as "mentioned" almost
   everywhere, so it's never reported. Safe, but it misses some dead files.
 - Two functions with the same name hide each other: if one is used, both look used.
+
+## First blind test: AgentinFlow (Oct 2026)
+
+An Astro marketing site I hadn't tuned on. Detron reported "no copies, no dead code"
+after reading only 3 of 19 code files: the other 16 were `.astro`. A clean report
+on a repo you mostly didn't read is the worst kind of false confidence, so scans now
+list what they skipped.
+
+Checked by hand: all 11 components are used, every CSS/JS file is referenced, both
+packages are used, and the inline scripts don't repeat each other. So the repo really
+is clean, but Detron got that right by luck.
+
+Lesson for adding Astro/Vue/Svelte: their imports end in `.astro`/`.vue`/`.svelte`.
+A quick trial that ignored this produced 10 false "unused file" alarms.

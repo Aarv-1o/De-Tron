@@ -18,7 +18,7 @@ come from **the agent not knowing what already exists**, not from single bad lin
 
 | In V1 | Not in V1 |
 |---|---|
-| JS/TS (frontend + Node backend) and Python | Java, C, C++ (later, one at a time) |
+| JS/TS (frontend + Node backend) and Python | Other languages (Java, C/C++, Go, Astro, Vue, Svelte…): at the end, one adapter each. Until then, scans say what they skipped |
 | Works with every agent (see below) | VS Code / editor UI |
 | Codebase checks + the line rules that passed our hand-check | Project planner, DB mind maps |
 | Safety layer (checkpoint, tests, type check, undo) | Security scanning (other tools do this) |

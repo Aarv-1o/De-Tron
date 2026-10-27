@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { extname } from "node:path";
 import { Language, Parser, type Tree } from "web-tree-sitter";
+import { grammarForFile, wasmFor, type LanguageId } from "../languages/index.ts";
 
-export type LanguageId = "javascript" | "typescript" | "tsx" | "python";
+export type { LanguageId } from "../languages/index.ts";
 
 export interface ParsedFile {
   path: string;
@@ -13,30 +13,11 @@ export interface ParsedFile {
   tree: Tree;
 }
 
-const EXTENSIONS: Record<string, LanguageId> = {
-  ".js": "javascript",
-  ".jsx": "javascript",
-  ".mjs": "javascript",
-  ".cjs": "javascript",
-  ".ts": "typescript",
-  ".mts": "typescript",
-  ".cts": "typescript",
-  ".tsx": "tsx",
-  ".py": "python",
-};
-
-const WASM_FILES: Record<LanguageId, string> = {
-  javascript: "tree-sitter-javascript/tree-sitter-javascript.wasm",
-  typescript: "tree-sitter-typescript/tree-sitter-typescript.wasm",
-  tsx: "tree-sitter-typescript/tree-sitter-tsx.wasm",
-  python: "tree-sitter-python/tree-sitter-python.wasm",
-};
-
 const require = createRequire(import.meta.url);
 const parsers = new Map<LanguageId, Promise<Parser>>();
 
 export function detectLanguage(path: string): LanguageId | undefined {
-  return EXTENSIONS[extname(path).toLowerCase()];
+  return grammarForFile(path)?.id;
 }
 
 // One parser per language, created on first use and then reused.
@@ -45,7 +26,7 @@ function getParser(language: LanguageId): Promise<Parser> {
   if (!parser) {
     parser = (async () => {
       await Parser.init();
-      const grammar = await Language.load(require.resolve(WASM_FILES[language]));
+      const grammar = await Language.load(require.resolve(wasmFor(language)));
       const p = new Parser();
       p.setLanguage(grammar);
       return p;

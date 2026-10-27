@@ -1,6 +1,7 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { unsupportedCode } from "../index/files.ts";
 import { buildIndex } from "../index/repo.ts";
 import { deadCodeToJson, formatDeadCode, type DeadCode } from "../report/deadCode.ts";
 import { duplicatesToJson, formatDuplicates } from "../report/duplicates.ts";
@@ -45,9 +46,12 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
     functions: await findDeadFunctions(index),
   };
 
+  const skipped = unsupportedCode(index.allFiles);
+
   if (json) {
     const report = {
       root, files: index.files.length, functions: index.functions.length,
+      skippedFiles: Object.fromEntries(skipped),
       filesWithSyntaxErrors: index.filesWithSyntaxErrors,
       duplicates: duplicatesToJson(groups), deadCode: deadCodeToJson(dead),
     };
@@ -55,7 +59,13 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
     return 0;
   }
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
-  out(`Detron scan: ${root}\n${index.files.length} files, ${index.functions.length} functions, ${seconds}s\n\n`);
+  out(`Detron scan: ${root}\n${index.files.length} files, ${index.functions.length} functions, ${seconds}s\n`);
+  if (skipped.size) {
+    const list = [...skipped].map(([ext, n]) => `${n} .${ext}`).join(", ");
+    const total = [...skipped.values()].reduce((a, b) => a + b, 0);
+    out(`Not checked: ${list} file${total > 1 ? "s" : ""} (not supported yet). Results only cover the files above.\n`);
+  }
+  out("\n");
   out(formatDuplicates(groups, all));
   out(`\n${formatDeadCode(dead, all)}`);
   if (index.filesWithSyntaxErrors.length) {
@@ -83,6 +93,10 @@ export async function run(argv: string[], out: Write): Promise<number> {
   if (values.help || !command) {
     out(HELP);
     return values.help ? 0 : 2;
+  }
+  if (command === "scan" && extra.length === 1 && ["all", "json"].includes(extra[0]!)) {
+    out(`Did you mean --${extra[0]}? Options start with two dashes.\n`);
+    return 2;
   }
   if (command !== "scan" || extra.length) {
     out(`Unknown command: ${positionals.join(" ")}\n\n${HELP}`);

@@ -9,8 +9,8 @@ const ADVICE: Record<DuplicateGroup["kind"], Partial<Record<Confidence, string>>
     maybe: "Same structure, different values. Could become one helper with a parameter.",
   },
   "cross-language": {
-    likely: "Same logic in JS and Python. Decide which side owns it.",
-    maybe: "Same name in JS and Python. Check whether they do the same thing.",
+    likely: "Same logic in two languages. Decide which side owns it.",
+    maybe: "Same name in two languages. Check whether they do the same thing.",
   },
 };
 

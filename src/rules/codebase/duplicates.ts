@@ -1,6 +1,7 @@
 import { isTestFile } from "../../index/files.ts";
 import type { FunctionInfo } from "../../index/functions.ts";
 import { JSX_MARKER, LITERAL_PREFIX } from "../../index/shape.ts";
+import { supportFor } from "../../languages/index.ts";
 import type { Confidence } from "../confidence.ts";
 
 export interface DuplicateGroup {
@@ -22,7 +23,7 @@ const MAX_LINES_SIMILAR = 120; // whole pages and module factories share vocabul
 const nested = (a: FunctionInfo, b: FunctionInfo) =>
   a.file === b.file && ((a.startLine <= b.startLine && a.endLine >= b.endLine) || (b.startLine <= a.startLine && b.endLine >= a.endLine));
 const key = (fn: FunctionInfo) => fn.shape.join("\u0001");
-const family = (fn: FunctionInfo) => (fn.language === "python" ? "python" : "js");
+const family = (fn: FunctionInfo) => supportFor(fn.language).family;
 const markupHeavy = (fn: FunctionInfo) => fn.shape.filter((t) => t === JSX_MARKER).length / fn.shape.length > MARKUP_HEAVY;
 
 // Structure only: names and values blanked out, in overlapping 3-token windows.
@@ -133,19 +134,21 @@ export function findDuplicates(all: FunctionInfo[]): DuplicateGroup[] {
     groups.push({ kind: "similar", confidence: "maybe", functions: expand(members), sharedValues: [] });
   }
 
-  // 3. The same function written in JS and Python: same name, ideally the same values too.
+  // 3. The same function written in two languages (say JS and Python): same name, ideally the same values too.
   const byName = new Map<string, FunctionInfo[]>();
   for (const fn of fns) {
     const words = nameWords(fn.name);
     if (words.includes(" ") && fn.shape.length >= 20) byName.set(words, [...(byName.get(words) ?? []), fn]); // one-word names collide too often
   }
   for (const named of byName.values()) {
-    const js = named.filter((f) => family(f) === "js");
-    const py = named.filter((f) => family(f) === "python");
-    if (!js.length || !py.length) continue;
-    const pyValues = new Set(py.flatMap((f) => [...values(f)]));
-    const shared = [...new Set(js.flatMap((f) => [...values(f)]))].filter((v) => pyValues.has(v));
-    groups.push({ kind: "cross-language", confidence: shared.length >= 2 ? "likely" : "maybe", functions: [...js, ...py], sharedValues: shared });
+    const families = new Map<string, FunctionInfo[]>();
+    for (const f of named) families.set(family(f), [...(families.get(family(f)) ?? []), f]);
+    if (families.size < 2) continue;
+    // Values found in at least two languages.
+    const seenIn = new Map<string, Set<string>>();
+    for (const [fam, fs] of families) for (const f of fs) for (const v of values(f)) seenIn.set(v, new Set([...(seenIn.get(v) ?? []), fam]));
+    const shared = [...seenIn].filter(([, fams]) => fams.size > 1).map(([v]) => v);
+    groups.push({ kind: "cross-language", confidence: shared.length >= 2 ? "likely" : "maybe", functions: [...families.values()].flat(), sharedValues: shared });
   }
 
   const rank = { sure: 0, likely: 1, maybe: 2 };

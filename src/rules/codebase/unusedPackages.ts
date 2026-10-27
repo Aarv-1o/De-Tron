@@ -2,7 +2,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { builtinModules } from "node:module";
 import { join, posix } from "node:path";
 import type { RepoIndex } from "../../index/repo.ts";
-import { readTexts } from "../../index/texts.ts";
+import { escapeRegex, readTexts } from "../../index/texts.ts";
 import type { Confidence } from "../confidence.ts";
 
 export interface UnusedPackage {
@@ -58,7 +58,6 @@ function binNames(name: string, installed: Manifest | undefined): string[] {
   return bin && typeof bin === "object" ? Object.keys(bin) : [name.split("/").pop()!];
 }
 
-const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const mentions = (text: string, word: string) => new RegExp(`(^|[^\\w@/.-])${escapeRegex(word)}($|[^\\w-])`).test(text);
 
 export async function findUnusedPackages(index: RepoIndex): Promise<UnusedPackage[]> {
