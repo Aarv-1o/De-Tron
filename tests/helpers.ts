@@ -1,6 +1,9 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { extractUsage } from "../src/index/usage.ts";
+import { detectLanguage, parseSource } from "../src/parse/parse.ts";
+import { runLineRules } from "../src/rules/line/index.ts";
 
 // A throwaway repo on disk: { "src/a.ts": "content", ... }.
 export async function makeRepo(files: Record<string, string>): Promise<string> {
@@ -10,4 +13,18 @@ export async function makeRepo(files: Record<string, string>): Promise<string> {
     await writeFile(join(root, path), content);
   }
   return root;
+}
+
+// Findings for one file, as "line rule confidence".
+export async function check(file: string, source: string, rule?: string): Promise<string[]> {
+  const language = detectLanguage(file)!;
+  const tree = await parseSource(source, language);
+  try {
+    const parsed = { path: file, language, source, tree };
+    return runLineRules(parsed, file, extractUsage(parsed).imports.map((i) => i.source))
+      .filter((f) => !rule || f.rule === rule)
+      .map((f) => `${f.line} ${f.rule} ${f.confidence}`);
+  } finally {
+    tree.delete();
+  }
 }

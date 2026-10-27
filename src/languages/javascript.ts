@@ -74,6 +74,9 @@ function defaultExportName(root: Node): string | undefined {
   return undefined;
 }
 
+const FRONTEND_PATH = /(^|\/)(components|pages|views|static|public|client|frontend|web|ui)\//;
+const FRONTEND_IMPORT = /^(react|react-dom|vue|svelte|solid-js|preact)(\/|$)/;
+
 export const javascript: LanguageSupport = {
   family: "js",
   label: "JS/TS",
@@ -142,12 +145,15 @@ export const javascript: LanguageSupport = {
   },
 
   entryKind: () => undefined,
+  runsInBrowser: (file, imports) =>
+    /\.[jt]sx$/.test(file) || FRONTEND_PATH.test(file) || imports.some((i) => FRONTEND_IMPORT.test(i)),
   unusedExportReason: "Exported, but nothing uses it.",
 
   syntax: {
     catchClause: "catch_clause",
     catchBody: (clause) => clause.childForFieldName("body") ?? undefined,
     catchVariable: (clause) => clause.childForFieldName("parameter")?.text,
+    catchType: () => undefined,
     throwStatement: "throw_statement",
     emptyStatement: undefined,
     nesting: ["if_statement", "for_statement", "for_in_statement", "while_statement", "do_statement", "try_statement", "switch_statement"],

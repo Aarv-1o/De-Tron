@@ -83,11 +83,13 @@ export const python: LanguageSupport = {
     return MAIN_BLOCK.test(text) || TOP_LEVEL_CALL.test(text) ? "script" : undefined;
   },
   unusedExportReason: "Nothing uses it.",
+  runsInBrowser: () => false,
 
   syntax: {
     catchClause: "except_clause",
     catchBody: (clause) => clause.namedChildren.find((c) => c.type === "block"),
     catchVariable: (clause) => /\bas\s+(\w+)\s*:/.exec(clause.text.split("\n")[0] ?? "")?.[1],
+    catchType: (clause) => /^except\s+(.+?)(\s+as\s+\w+)?\s*:/.exec(clause.text.split("\n")[0] ?? "")?.[1],
     throwStatement: "raise_statement",
     emptyStatement: "pass_statement",
     nesting: ["if_statement", "for_statement", "while_statement", "try_statement", "with_statement", "match_statement"],
