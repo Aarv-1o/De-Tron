@@ -33,9 +33,10 @@ export function catchRules({ parsed, file, syntax, frontend }: FileContext): Lin
     const statements = statementsOf(body).filter((s) => s.type !== syntax.emptyStatement);
     const handlers = node.parent?.namedChildren.filter((c) => c.type === syntax.catchClause).length ?? 1;
 
+    // A comment saying why makes any of these a decision, not a bug.
+    if (givesReason(body, syntax)) continue;
     if (statements.length === 0) {
       const type = syntax.catchType(node);
-      if (givesReason(body, syntax)) continue;
       // Ignoring one named error (`except json.JSONDecodeError: pass`) is usually on purpose.
       const specific = type !== undefined && !BROAD_ERRORS.test(type);
       add(node, "empty-catch", specific ? "maybe" : "likely", "Error is silently ignored. Handle it, or add a comment saying why that's safe.");

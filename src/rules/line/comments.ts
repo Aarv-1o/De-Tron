@@ -6,6 +6,9 @@ import { lineOf, walk, type FileContext, type LineFinding } from "./types.ts";
 const DIRECTIVE = /^(eslint|@ts-|ts-|noqa|type:|pylint|prettier|istanbul|c8|fmt:|TODO|FIXME|NOTE|HACK|XXX|!|-\*-)/i;
 // A comment that explains why isn't repeating the code, even if it shares its words.
 const EXPLAINS_WHY = /\b(because|why|note|hack|workaround|must|don't|do not|avoid|otherwise|ensure|since|so that|unless|careful|important|instead)\b/i;
+// A comment above a function or class documents what it does: that's an interface comment, not noise.
+const DEFINITION = /^(export\s+(default\s+)?)?(async\s+)?(function\b|def\b|class\b)/;
+
 // Section headers (// ─── Rate Limiting ───) are for finding your way in a long file.
 const DIVIDER = /[─━═]|[-=*#]{3,}/;
 const STOPWORDS = new Set("the a an to of and or for in on is it this that with be by as from at we our if then into set get new use".split(" "));
@@ -57,7 +60,7 @@ export async function commentRules({ parsed, file, syntax }: FileContext): Promi
     if (codeRowSet.has(row)) continue;
     const text = syntax.commentText(comment.text);
     const next = lines.slice(row + 1).find((l) => l.trim())?.trim() ?? "";
-    if (!next || next.startsWith(comment.text.slice(0, 1)) || DIRECTIVE.test(text) || EXPLAINS_WHY.test(text) || DIVIDER.test(comment.text)) continue;
+    if (!next || next.startsWith(comment.text.slice(0, 1)) || DIRECTIVE.test(text) || EXPLAINS_WHY.test(text) || DIVIDER.test(comment.text) || DEFINITION.test(next)) continue;
     const said = words(text);
     if (said.length < 2 || text.split(/\s+/).length > 8) continue;
     const code = codeWords(next);

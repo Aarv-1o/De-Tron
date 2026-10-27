@@ -16,6 +16,9 @@ function load() {
 }
 try { a(); } catch (e) { throw new Error("wrapped", { cause: e }); }
 try { a(); } catch (e) { res.status(500).json({ error: e.message }); }
+try { a(); } catch (e) {
+  console.error(e); // the response is already sent, so logging is all we can do
+}
 `), [
     "2 catch-rethrow sure",
     "3 catch-only-logs maybe",
@@ -104,6 +107,8 @@ const res = await fetchClients();
 const authLimiter = rateLimit({});
 // Done
 start();
+// Load the client list
+function loadClientList() {}
 `, "comment-repeats-code"), ["2 comment-repeats-code likely", "4 comment-repeats-code likely"]);
 });
 
