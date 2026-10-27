@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { check } from "./helpers.ts";
+import { buildIndex } from "../src/index/repo.ts";
+import { findFunctionShapeIssues } from "../src/rules/codebase/functionShape.ts";
+import { check, makeRepo } from "./helpers.ts";
 
 test("catch blocks: JS", async () => {
   assert.deepEqual(await check("server/jobs.js", `
@@ -103,4 +105,45 @@ const authLimiter = rateLimit({});
 // Done
 start();
 `, "comment-repeats-code"), ["2 comment-repeats-code likely", "4 comment-repeats-code likely"]);
+});
+
+async function shapeIssues(files: Record<string, string>): Promise<string[]> {
+  const root = await makeRepo(files);
+  return findFunctionShapeIssues((await buildIndex(root)).functions).map((f) => `${f.line} ${f.rule} ${f.confidence}`);
+}
+
+test("unused params: only trailing ones, only in functions nothing else calls with a fixed signature", async () => {
+  assert.deepEqual(await shapeIssues({
+    "server/gmail.js": [
+      "function extractAttachments(payload, messageId) { return payload.parts; }", // sure: JS ignores extra args
+      "function middle(a, b, c) { return a + c; }", // b is in the middle: removing it shifts c
+      "function handler(req, res, next) { res.send(1); }", // passed to the router: fixed signature
+      'router.get("/", handler);',
+      "export function api(x, y) { return x; }", // exported: callers elsewhere
+      "extractAttachments(p, id); middle(1, 2, 3);",
+    ].join("\n"),
+    "agents/graph.py": [
+      "def route_after_tools(state):", // passed to LangGraph: fixed signature
+      "    return 'orchestrator'",
+      "",
+      "graph.add_conditional_edges('tools', route_after_tools)",
+      "",
+      "def _fmt(text, width):", // Python: callers must change too, so only likely
+      "    return text",
+      "",
+      "_fmt('a', 3)",
+    ].join("\n"),
+  }), ["6 unused-param likely", "1 unused-param sure"]);
+});
+
+test("deep nesting and long parameter lists", async () => {
+  assert.deepEqual(await shapeIssues({
+    "a.js": [
+      "function deep(a) {",
+      "  if (a) { for (const x of a) { while (x) { try { if (x.y) { go(); } } catch (e) { throw e; } } } }",
+      "}",
+      "function many(a, b, c, d, e) { return a + b + c + d + e; }",
+      "deep(1); many(1, 2, 3, 4, 5);",
+    ].join("\n"),
+  }), ["1 deep-nesting likely", "4 long-params maybe"]);
 });
