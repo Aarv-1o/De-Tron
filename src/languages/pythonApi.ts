@@ -28,6 +28,21 @@ function keyword(call: Node, name: string): Node | undefined {
   return arg?.childForFieldName("value") ?? undefined;
 }
 
+const MAX_BODY = 4000;
+
+// FastAPI dependencies=[Depends(get_current_user)] on an app, router or route.
+const dependencies = (call: Node) => keyword(call, "dependencies")?.namedChildren.map((d) => d.text.slice(0, 80)) ?? [];
+
+// What guards a view: its other decorators (@login_required, @jwt_required()) and parameters
+// that pull in the user (current_user: CurrentUser, user = Depends(get_current_user)).
+export function viewGuards(definition: Node, decorators: Node[]): string[] {
+  const params = definition.childForFieldName("parameters")?.namedChildren ?? [];
+  return [
+    ...decorators.map((d) => d.text.replace(/^@/, "").slice(0, 80)),
+    ...params.filter((p) => p.type !== "identifier").map((p) => p.text.slice(0, 80)),
+  ];
+}
+
 // app = FastAPI(), router = APIRouter(prefix="/api"), bp = Blueprint("x", __name__, url_prefix="/x")
 function findRouters(root: Node, api: FileApi): void {
   for (const node of descendants(root)) {
@@ -36,17 +51,23 @@ function findRouters(root: Node, api: FileApi): void {
     const value = node.childForFieldName("right");
     if (name?.type !== "identifier" || value?.type !== "call") continue;
     const callee = value.childForFieldName("function")?.text.split(".").at(-1);
-    if (callee === "FastAPI" || callee === "Flask") api.routers.set(name.text, { prefix: "", isApp: true });
+    const guards = dependencies(value);
+    if (callee === "FastAPI" || callee === "Flask") api.routers.set(name.text, { prefix: "", isApp: true, guards });
     else if (callee === "APIRouter" || callee === "Blueprint") {
       const prefix = prefixValue(keyword(value, callee === "APIRouter" ? "prefix" : "url_prefix"));
-      api.routers.set(name.text, { prefix, isApp: false });
+      api.routers.set(name.text, { prefix, isApp: false, guards });
     }
   }
 }
 
 function routesOf(decorated: Node, api: FileApi): void {
-  const handler = decorated.childForFieldName("definition")?.childForFieldName("name")?.text;
-  for (const decorator of decorated.namedChildren.filter((d) => d.type === "decorator")) {
+  const definition = decorated.childForFieldName("definition");
+  const handler = definition?.childForFieldName("name")?.text;
+  const decorators = decorated.namedChildren.filter((d) => d.type === "decorator");
+  const isRoute = (d: Node) => /^@\w+\.(get|post|put|patch|delete|route|api_route)\(/.test(d.text);
+  const body = definition?.text.slice(0, MAX_BODY);
+  const base = definition ? viewGuards(definition, decorators.filter((d) => !isRoute(d))) : [];
+  for (const decorator of decorators) {
     const call = decorator.namedChildren[0];
     const fn = call?.type === "call" ? call.childForFieldName("function") : undefined;
     const router = fn?.type === "attribute" ? fn.childForFieldName("object")?.text : undefined;
@@ -62,7 +83,8 @@ function routesOf(decorated: Node, api: FileApi): void {
       const list = keyword(call, "methods");
       methods = list ? list.namedChildren.map((m) => stringValue(m)?.toUpperCase() ?? "ALL") : [kind === "route" ? "GET" : "ALL"];
     }
-    for (const method of methods) api.routes.push({ method, path, router, line, ...(handler ? { handler } : {}) });
+    const guards = [...base, ...dependencies(call)];
+    for (const method of methods) api.routes.push({ method, path, router, line, guards, ...(handler ? { handler } : {}), ...(body ? { body } : {}) });
   }
 }
 
@@ -76,7 +98,7 @@ function mountOf(call: Node, api: FileApi): void {
   const target = argsOf(call)[0];
   if (target?.type !== "identifier" && target?.type !== "attribute") return;
   const prefix = prefixValue(keyword(call, kind === "include_router" ? "prefix" : "url_prefix"));
-  api.mounts.push({ prefix, on, target: target.text, line: call.startPosition.row + 1 });
+  api.mounts.push({ prefix, on, target: target.text, line: call.startPosition.row + 1, guards: dependencies(call) });
 }
 
 export function extractPythonApi(root: Node): FileApi {

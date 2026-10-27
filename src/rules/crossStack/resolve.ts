@@ -12,6 +12,10 @@ export interface FullRoute {
   file: string;
   line: number;
   handler?: string;
+  // Every middleware, guard, dependency or decorator in front of the handler, from the route
+  // itself up through each router it's mounted on, plus global guards.
+  guards: string[];
+  body?: string; // the handler's code, when it's known
 }
 
 const JS_EXTENSIONS = ["", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", "/index.ts", "/index.tsx", "/index.js"];
@@ -90,42 +94,94 @@ function mountTargets(file: string, target: string, repo: Repo): Key[] {
   return names.map((n) => keyOf(from.file, n));
 }
 
+// One way a router is reached: its full path prefix, and the routers above it with the line
+// where the next one down was attached (middleware only applies to what's added after it).
+interface Reach {
+  path: string;
+  chain: { key: Key; path: string; line: number; guards: string[] }[];
+}
+
+const startsWithPath = (path: string, prefix: string) =>
+  prefix === "" || prefix === "/" || path === prefix || path.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`);
+
 export function fullRoutes(repo: Repo): FullRoute[] {
   const { apis } = repo;
   const globalPrefix = [...apis.values()].find((a) => a.globalPrefix !== undefined)?.globalPrefix ?? "";
-  const mountedAt = new Map<Key, { on: Key; prefix: string }[]>();
+  const globalGuards = [...apis.values()].flatMap((a) => a.globalGuards);
+  const views = new Map([...apis.values()].flatMap((a) => [...a.views]));
+  const pathGuards = [...apis.values()].flatMap((a) => a.pathGuards);
+  const folderGuards = [...apis].flatMap(([f, a]) => a.folderGuards.map((name) => ({ dir: posix.dirname(f), name })));
+  // NestJS forRoutes paths are relative to the global prefix; a controller name means all its routes.
+  const byPath = (route: { method: string; router: string }, path: string) =>
+    pathGuards.filter((g) => {
+      if (g.path.startsWith("controller:")) return g.path.slice(11) === route.router;
+      const want = parsePath(joinPaths(globalPrefix, g.path));
+      const have = parsePath(path);
+      const sameMethod = g.method === "ALL" || g.method === route.method;
+      return !!want && !!have && sameMethod && want.segments.length === have.segments.length && want.segments.every((s, i) => s === have.segments[i] || s === "*" || have.segments[i] === "*");
+    }).flatMap((g) => g.names);
+  const inFolder = (file: string) => folderGuards.filter((g) => file.startsWith(`${g.dir}/`)).map((g) => g.name);
+  const mountedAt = new Map<Key, { on: Key; prefix: string; line: number; guards: string[] }[]>();
+  // app.use(requireAuth), router.use("/admin", isAdmin): middleware, not routers.
+  const uses = new Map<Key, { prefix: string; line: number; names: string[] }[]>();
   for (const [file, api] of apis) {
     for (const mount of api.mounts) {
-      for (const target of mountTargets(file, mount.target, repo)) {
-        const list = mountedAt.get(target) ?? [];
-        list.push({ on: keyOf(file, mount.on), prefix: mount.prefix });
-        mountedAt.set(target, list);
+      const targets = mountTargets(file, mount.target, repo);
+      const on = keyOf(file, mount.on);
+      if (!targets.length) {
+        uses.set(on, [...(uses.get(on) ?? []), { prefix: mount.prefix, line: mount.line, names: [...mount.guards, mount.target] }]);
+      }
+      for (const target of targets) {
+        mountedAt.set(target, [...(mountedAt.get(target) ?? []), { on, prefix: mount.prefix, line: mount.line, guards: mount.guards }]);
       }
     }
   }
-  // Every full prefix a router is reachable at; undefined when it's never mounted anywhere we can see.
-  const prefixes = (key: Key, seen = new Set<Key>()): string[] | undefined => {
+  const split = (key: Key) => [key.slice(0, key.lastIndexOf("#")), key.slice(key.lastIndexOf("#") + 1)] as const;
+  // Every way a router is reached; undefined when it's never mounted anywhere we can see.
+  const reaches = (key: Key, seen = new Set<Key>()): Reach[] | undefined => {
     if (seen.has(key)) return undefined;
     seen.add(key);
-    const [file, name] = [key.slice(0, key.lastIndexOf("#")), key.slice(key.lastIndexOf("#") + 1)];
+    const [file, name] = split(key);
     const router = apis.get(file)?.routers.get(name);
     const own = router?.global ? joinPaths(globalPrefix, router.prefix) : (router?.prefix ?? "");
     const parents = (mountedAt.get(key) ?? []).flatMap((m) =>
-      (prefixes(m.on, new Set(seen)) ?? []).map((p) => joinPaths(joinPaths(p, m.prefix), own)),
+      (reaches(m.on, new Set(seen)) ?? []).map((up) => {
+        const path = joinPaths(joinPaths(up.path, m.prefix), own);
+        const last = up.chain.at(-1)!;
+        return { path, chain: [...up.chain.slice(0, -1), { ...last, line: m.line, guards: [...last.guards, ...m.guards] }, { key, path, line: 0, guards: [] }] };
+      }),
     );
     if (parents.length) return parents;
-    return router?.isApp || (!router && name === "app") ? [own] : undefined;
+    return router?.isApp || (!router && name === "app") ? [{ path: own, chain: [{ key, path: own, line: 0, guards: [] }] }] : undefined;
   };
+
+  // Guards on the way to a route: each router's own, the middleware it uses before the next
+  // step (whose prefix covers the route), and what each mount adds.
+  const guardsFor = (chain: Reach["chain"], routeLine: number, routePath: string) =>
+    chain.flatMap((step, i) => {
+      const [file, name] = split(step.key);
+      const before = i === chain.length - 1 ? routeLine : step.line;
+      const used = (uses.get(step.key) ?? []).filter((u) => u.line < before && startsWithPath(routePath, joinPaths(step.path, u.prefix)));
+      return [...(apis.get(file)?.routers.get(name)?.guards ?? []), ...used.flatMap((u) => u.names), ...step.guards];
+    });
 
   const routes: FullRoute[] = [];
   for (const [file, api] of apis) {
     for (const route of api.routes) {
-      const found = prefixes(keyOf(file, route.router));
-      // A prefix with an unknown part (a setting): only what comes after it is known.
-      const raws = (found ?? [HOLE]).map((p) => (p.includes(HOLE) ? HOLE + joinPaths(p.split(HOLE).at(-1)!, route.path) : joinPaths(p, route.path)));
-      for (const raw of raws) {
+      const key = keyOf(file, route.router);
+      const found = reaches(key) ?? [{ path: HOLE, chain: [{ key, path: HOLE, line: 0, guards: [] }] }];
+      const view = route.handler ? views.get(route.handler) : undefined;
+      for (const reach of found) {
+        // A prefix with an unknown part (a setting): only what comes after it is known.
+        const raw = reach.path.includes(HOLE) ? HOLE + joinPaths(reach.path.split(HOLE).at(-1)!, route.path) : joinPaths(reach.path, route.path);
         const path = parsePath(raw);
-        if (path) routes.push({ method: route.method, path, file, line: route.line, ...(route.handler ? { handler: route.handler } : {}) });
+        if (!path) continue;
+        const guards = [
+          ...guardsFor(reach.chain, route.line, raw), ...route.guards, ...(view?.guards ?? []),
+          ...byPath(route, raw), ...inFolder(file), ...globalGuards,
+        ];
+        const body = route.body ?? view?.body;
+        routes.push({ method: route.method, path, file, line: route.line, guards, ...(route.handler ? { handler: route.handler } : {}), ...(body ? { body } : {}) });
       }
     }
   }

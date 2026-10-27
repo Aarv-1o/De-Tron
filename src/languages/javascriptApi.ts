@@ -1,7 +1,7 @@
 import type { Node } from "web-tree-sitter";
 import { emptyApi, type FileApi } from "../rules/crossStack/types.ts";
 import { findClients, findMentions, visitCallSite } from "./jsCalls.ts";
-import { nestGlobalPrefix, nestRoutes, nextRoutes } from "./jsFileRoutes.ts";
+import { nestAppGuards, nestGlobalPrefix, nestMiddleware, nestRoutes, nextRoutes } from "./jsFileRoutes.ts";
 import { findRouters, mountOf, ROUTER_NAME, routesOf } from "./jsRoutes.ts";
 import { descendants, unquote } from "./nodes.ts";
 
@@ -42,10 +42,13 @@ function viteProxies(root: Node, api: FileApi): void {
 
 export function extractJsApi(root: Node, file: string): FileApi {
   const api = emptyApi();
+  if (/(^|\/)autohooks\.[cm]?[jt]s$/.test(file)) api.autohooks = true;
   findRouters(root, api);
   findClients(root, api);
   nextRoutes(root, file, api);
   nestRoutes(root, api);
+  nestAppGuards(root, api);
+  nestMiddleware(root, api);
   if (VITE_CONFIG.test(file)) viteProxies(root, api);
   for (const node of descendants(root)) {
     if (node.type === "call_expression") {

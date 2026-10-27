@@ -4,8 +4,9 @@ import { formatCrossStack } from "../src/report/crossStack.ts";
 import type { CrossStack } from "../src/rules/crossStack/check.ts";
 import { parsePath } from "../src/rules/crossStack/paths.ts";
 
-const route = (method: string, path: string, file: string, line: number) => ({ method, path: parsePath(path)!, file, line });
+const route = (method: string, path: string, file: string, line: number) => ({ method, path: parsePath(path)!, file, line, guards: [] });
 const found: CrossStack = {
+  allRoutes: [],
   routes: 3,
   calls: 4,
   missing: [
@@ -28,7 +29,7 @@ test("cross-stack report: each kind with locations and the route it likely meant
 });
 
 test("cross-stack report: says what it checked, or why it didn't", () => {
-  assert.equal(formatCrossStack({ routes: 3, calls: 4, missing: [], unused: [] }, false), "No frontend/backend mismatches found (4 calls checked against 3 routes).\n");
-  assert.equal(formatCrossStack({ routes: 0, calls: 4, missing: [], unused: [] }, false), "Frontend and backend: not checked (no API routes found in this repo).\n");
-  assert.equal(formatCrossStack({ routes: 2, calls: 0, missing: [], unused: [] }, false), "Frontend and backend: not checked (no calls to its API found in this repo).\n");
+  assert.equal(formatCrossStack({ allRoutes: [], routes: 3, calls: 4, missing: [], unused: [] }, false), "No frontend/backend mismatches found (4 calls checked against 3 routes).\n");
+  assert.equal(formatCrossStack({ allRoutes: [], routes: 0, calls: 4, missing: [], unused: [] }, false), "Frontend and backend: not checked (no API routes found in this repo).\n");
+  assert.equal(formatCrossStack({ allRoutes: [], routes: 2, calls: 0, missing: [], unused: [] }, false), "Frontend and backend: not checked (no calls to its API found in this repo).\n");
 });

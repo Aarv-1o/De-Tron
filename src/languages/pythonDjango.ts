@@ -47,8 +47,36 @@ function patternEntry(entry: Node, api: FileApi): void {
   const line = entry.startPosition.row + 1;
   if (view.text === "admin.site.urls") return; // Django's admin: pages people open, not an API
   const target = includeTarget(view);
-  if (target) api.mounts.push({ prefix: path, on: PATTERN, target, line });
-  else api.routes.push({ method: "ALL", path, router: PATTERN, line }); // a view takes every method it handles
+  if (target) api.mounts.push({ prefix: path, on: PATTERN, target, line, guards: [] });
+  // A view takes every method it handles. Its guards are found where it's defined (views).
+  else api.routes.push({ method: "ALL", path, router: PATTERN, line, guards: [], handler: viewName(view) });
+}
+
+// LoginView.as_view() -> LoginView; views.home -> home.
+const viewName = (view: Node | undefined) => (view?.text ?? "").replace(/\.as_view\([\s\S]*$/, "").split(".").at(-1)!;
+
+// Views defined in this file and what guards them: permission_classes, auth mixins, decorators.
+function views(root: Node, api: FileApi): void {
+  for (const node of descendants(root)) {
+    const definition = node.type === "decorated_definition" ? node.childForFieldName("definition") : node;
+    if (definition?.type !== "class_definition" && definition?.type !== "function_definition") continue;
+    if (node.type !== "decorated_definition" && node.parent?.type === "decorated_definition") continue;
+    const name = definition.childForFieldName("name")?.text;
+    if (!name || api.views.has(name)) continue;
+    const decorators = node.type === "decorated_definition" ? node.namedChildren.filter((d) => d.type === "decorator").map((d) => d.text.slice(1, 81)) : [];
+    const bases = definition.type === "class_definition" ? (definition.childForFieldName("superclasses")?.text ?? "") : "";
+    const attrs = definition.type === "class_definition"
+      ? [...definition.text.matchAll(/^\s+(permission_classes|authentication_classes)\s*=\s*([^\n]+)/gm)].map((m) => `${m[1]} = ${m[2]!.slice(0, 80)}`)
+      : [];
+    const guards = [...decorators, ...(/Mixin/.test(bases) ? [bases.slice(0, 80)] : []), ...attrs];
+    api.views.set(name, { guards, body: definition.text.slice(0, 4000) });
+  }
+}
+
+// settings.py: REST_FRAMEWORK = { "DEFAULT_PERMISSION_CLASSES": [...IsAuthenticated] }
+function defaultPermissions(root: Node, api: FileApi): void {
+  const m = /["']DEFAULT_PERMISSION_CLASSES["']\s*:\s*[\[(]([^\])]*)/.exec(root.text);
+  if (m) api.globalGuards.push(...m[1]!.split(",").map((s) => s.trim().replace(/['"]/g, "")).filter(Boolean));
 }
 
 // urlpatterns = [...] and router = DefaultRouter()
@@ -72,10 +100,13 @@ function register(call: Node, api: FileApi): void {
   if (!router || fn?.childForFieldName("attribute")?.text !== "register" || !api.routers.has(router) || prefix === undefined) return;
   const line = call.startPosition.row + 1;
   const base = regexToPath(prefix) ?? prefix;
-  api.routes.push({ method: "ALL", path: base, router, line }, { method: "ALL", path: `${base}/:pk`, router, line });
+  const handler = viewName(argsOf(call)[1]);
+  api.routes.push({ method: "ALL", path: base, router, line, guards: [], handler }, { method: "ALL", path: `${base}/:pk`, router, line, guards: [], handler });
 }
 
 export function djangoRoutes(root: Node, api: FileApi): void {
+  views(root, api);
+  defaultPermissions(root, api);
   for (const node of descendants(root)) {
     if (node.type === "assignment" || node.type === "augmented_assignment") assignment(node, api);
     else if (node.type === "call") register(node, api);

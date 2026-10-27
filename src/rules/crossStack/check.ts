@@ -25,6 +25,7 @@ export interface UnusedRoute {
 }
 
 export interface CrossStack {
+  allRoutes: FullRoute[]; // every route found, for the endpoint security checks
   routes: number;
   calls: number;
   missing: MissingRoute[];
@@ -88,7 +89,7 @@ export function findCrossStack(
     })
     .filter((c): c is { call: ApiCall & { file: string }; path: ApiPath } => !!c.path);
   // No backend in the repo, or no frontend calling it: nothing to compare.
-  if (!routes.length || !calls.length) return { routes: routes.length, calls: calls.length, missing: [], unused: [] };
+  if (!routes.length || !calls.length) return { allRoutes: routes, routes: routes.length, calls: calls.length, missing: [], unused: [] };
 
   const reached = calls.map(({ call, path }) => ({ call, path, hits: routesFor(path, routes) }));
   const missing = reached.flatMap(({ call, path, hits }) => checkCall(call, hits, path, routes) ?? []);
@@ -113,5 +114,5 @@ export function findCrossStack(
       const siblingsUsed = routes.some((r) => r.file === route.file && r !== route && uses(r));
       return { confidence: siblingsUsed ? "likely" : "maybe", route };
     });
-  return { routes: routes.length, calls: calls.length, missing, unused };
+  return { allRoutes: routes, routes: routes.length, calls: calls.length, missing, unused };
 }

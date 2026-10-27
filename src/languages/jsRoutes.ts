@@ -19,6 +19,22 @@ export function objectProp(object: Node | undefined, key: string): Node | undefi
   return pair?.childForFieldName("value") ?? undefined;
 }
 
+const FUNCTION_NODES = new Set(["arrow_function", "function_expression", "function"]);
+const MAX_BODY = 4000;
+
+// How a middleware or handler is named in a report: `protect`, `passport.authenticate("jwt")`.
+const nameOfArg = (n: Node) => (n.type === "call_expression" ? n.text : n.text).replace(/\s+/g, " ").slice(0, 80);
+
+// What follows a route's path: middleware, then the handler (inline code or a named function).
+function handlerParts(rest: Node[]): { guards: string[]; handler?: string; body?: string } {
+  const last = rest.at(-1);
+  if (!last) return { guards: [] };
+  // Inline middleware counts by its code: (req, reply) => req.isAdmin(reply).
+  const guards = rest.slice(0, -1).map(nameOfArg);
+  if (FUNCTION_NODES.has(last.type)) return { guards, body: last.text.slice(0, MAX_BODY) };
+  return { guards, handler: nameOfArg(last) };
+}
+
 const stringProp = (object: Node | undefined, key: string) => {
   const value = objectProp(object, key);
   return value?.type === "string" ? unquote(value) : undefined;
@@ -80,20 +96,31 @@ export function mountOf(on: string, prop: string, call: Node, api: FileApi): boo
   const line = call.startPosition.row + 1;
   if (prop === "use") {
     const target = all.length ? mountTarget(all.at(-1)!) : undefined;
-    const prefix = all[0]?.type === "string" && all.length > 1 ? unquote(all[0]) : "";
-    if (target) api.mounts.push({ prefix, on, target, line });
+    const hasPrefix = all[0]?.type === "string" && all.length > 1;
+    const prefix = hasPrefix ? unquote(all[0]!) : "";
+    const guards = all.slice(hasPrefix ? 1 : 0, -1).filter((n) => !FUNCTION_NODES.has(n.type)).map(nameOfArg);
+    if (target) api.mounts.push({ prefix, on, target, line, guards });
+    return true;
+  }
+  // Fastify hooks: fastify.addHook("onRequest", checkAuth) guards every route on that instance;
+  // in an autohooks file (@fastify/autoload), every route in the folder.
+  if (prop === "addHook" && /^["'](onRequest|preHandler|preValidation|preParsing)["']$/.test(all[0]?.text ?? "") && all[1]) {
+    const hook = all[1];
+    const label = FUNCTION_NODES.has(hook.type) ? (/unauthori[sz]ed|authenticat|session|jwt|verify|login/i.test(hook.text) ? "onRequest hook (checks auth)" : "onRequest hook") : nameOfArg(hook);
+    if (api.autohooks) api.folderGuards.push(label);
+    else api.mounts.push({ prefix: "", on, target: "", line: 0, guards: [label] });
     return true;
   }
   if (prop === "route" && all.length === 2 && all[0]?.type === "string") {
     const target = mountTarget(all[1]!);
-    if (target) api.mounts.push({ prefix: unquote(all[0]), on, target, line });
+    if (target) api.mounts.push({ prefix: unquote(all[0]), on, target, line, guards: [] });
     return true;
   }
   if (prop === "register" && all[0]) {
     const target = mountTarget(all[0]);
     // A prefix from a variable: HOLE, so only the rest of the path is known.
     const prefix = objectProp(all[1], "prefix") ? (stringProp(all[1], "prefix") ?? HOLE) : "";
-    if (target) api.mounts.push({ prefix, on, target, line });
+    if (target) api.mounts.push({ prefix, on, target, line, guards: [] });
     return true;
   }
   return false;
@@ -128,14 +155,30 @@ export function routesOf(object: Node, prop: string, call: Node, api: FileApi): 
     const url = objectProp(first, "url");
     const method = objectProp(first, "method");
     const methods = method?.type === "array" ? method.namedChildren.map(unquote) : method?.type === "string" ? [unquote(method)] : ["ALL"];
+    const hooks = ["onRequest", "preHandler", "preValidation"].flatMap((k) => {
+      const v = objectProp(first, k);
+      return v ? (v.type === "array" ? v.namedChildren.map(nameOfArg) : [nameOfArg(v)]) : [];
+    });
+    const handler = objectProp(first, "handler");
+    const parts = handler ? handlerParts([handler]) : { guards: [] };
     for (const path of url ? stringValues(url) ?? [] : []) {
-      for (const m of methods) api.routes.push({ method: m.toUpperCase(), path, router: root.text, line });
+      for (const m of methods) api.routes.push({ method: m.toUpperCase(), path, router: root.text, line, ...parts, guards: hooks });
     }
     return;
   }
   if (!METHOD_NAMES.has(prop)) return;
   // Its own path needs a handler after it; otherwise the path comes from .route("/x").
-  const path = isPath(first) && second ? first : object.type === "identifier" ? undefined : routePathOf(object);
+  const ownPath = isPath(first) && second;
+  const path = ownPath ? first : object.type === "identifier" ? undefined : routePathOf(object);
   if (!isPath(path)) return;
-  for (const value of stringValues(path!) ?? []) api.routes.push({ method: prop.toUpperCase(), path: value, router: root.text, line });
+  // Fastify puts hooks in an options object: app.get("/x", { preHandler: [auth] }, handler).
+  const rest = args(call).slice(ownPath ? 1 : 0).flatMap((n) => {
+    if (n.type !== "object") return [n];
+    return ["onRequest", "preHandler", "preValidation"].flatMap((k) => {
+      const v = objectProp(n, k);
+      return v ? (v.type === "array" ? v.namedChildren : [v]) : [];
+    });
+  });
+  const parts = handlerParts(rest);
+  for (const value of stringValues(path!) ?? []) api.routes.push({ method: prop.toUpperCase(), path: value, router: root.text, line, ...parts });
 }
