@@ -20,6 +20,7 @@ test("scan prints copies found in a repo", async () => {
   assert.match(text, /Copies \(3\)/);
   assert.match(text, /web\/time\.ts:1 {2}timeAgo/);
   assert.match(text, /Dead code|No dead code found/);
+  assert.match(text, /Code hygiene|No code hygiene issues found/);
 });
 
 test("scan --json is valid JSON with the groups", async () => {
