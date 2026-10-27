@@ -99,7 +99,7 @@ function crossStackFindings(r: ScanResult): Finding[] {
 
 function hygieneFindings(r: ScanResult, texts: Map<string, string>): Finding[] {
   const fnAt = new Map(r.index.functions.map((fn) => [`${fn.file}:${fn.startLine}`, fn]));
-  return [...r.database, ...r.hygiene].map((h: LineFinding) => {
+  return [...r.security, ...r.database, ...r.hygiene].map((h: LineFinding) => {
     const fn = fnAt.get(`${h.file}:${h.line}`);
     // The first sentence is the fact; the rest is advice the rule's guide already gives.
     const title = h.message.split(/(?<=\.) /)[0]!;

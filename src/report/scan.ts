@@ -14,7 +14,7 @@ function findingsPerFile(r: ScanResult, all: boolean): Map<string, number> {
     ...r.dead.functions.filter((d) => shown(d.confidence)).map((d) => d.fn.file),
     ...r.crossStack.missing.filter((m) => shown(m.confidence)).map((m) => m.file),
     ...r.crossStack.unused.filter((u) => shown(u.confidence)).map((u) => u.route.file),
-    ...[...r.hygiene, ...r.database].filter((f) => shown(f.confidence)).map((f) => f.file),
+    ...[...r.hygiene, ...r.database, ...r.security].filter((f) => shown(f.confidence)).map((f) => f.file),
   ];
   const counts = new Map<string, number>();
   for (const file of files) counts.set(file, (counts.get(file) ?? 0) + 1);
@@ -33,6 +33,7 @@ export function formatScan(r: ScanResult, all: boolean): string {
     formatDuplicates(r.groups, all, r.differences, r.deadFiles),
     `\n${formatDeadCode(r.dead, all)}`,
     `\n${formatCrossStack(r.crossStack, all)}`,
+    `\n${formatLineFindings("Security", r.security, all)}`,
     `\n${r.hasDatabase || r.database.length ? formatLineFindings("Database", r.database, all) : "Database: not checked (no database library or schema found).\n"}`,
     `\n${formatLineFindings("Code hygiene", r.hygiene, all)}`,
     `\n${formatHotspots(r.history, r.hotspots, findingsPerFile(r, all), all)}`,

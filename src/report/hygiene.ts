@@ -4,6 +4,7 @@ import { hiddenNote, nothingFound } from "./common.ts";
 
 // In the order they're shown: things that fail at runtime or hide failures first.
 const ORDER = [
+  "no-auth-at-all", "unauthenticated-route", "admin-without-role", "missing-ownership-check", "auth-without-rate-limit",
   "query-in-loop", "tree-walk-queries", "money-float", "insert-without-columns", "leading-wildcard-search", "order-by-random", "select-star",
   "empty-catch", "catch-only-logs", "catch-returns-default", "catch-rethrow", "commented-out-code", "unused-param",
   "deep-nesting", "comment-repeats-code", "long-params",

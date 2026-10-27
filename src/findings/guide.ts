@@ -142,6 +142,47 @@ export const GUIDES: Record<string, Guide> = {
     fix: ["Only if you're changing this function anyway: pass one object with named fields.", "Update every caller listed in the same commit."],
     verify: `${TESTS}; every caller listed was updated.`,
   },
+  "unauthenticated-route": {
+    name: "Endpoints with no auth check",
+    category: "security", safety: "ask-first",
+    why: "Anyone on the internet can call it: most vulnerabilities in 2025-2026 scans of AI-built apps were reachable without logging in (Escape, CSA).",
+    fix: [
+      "Add the same auth middleware/guard the app's other routes use (router.use(auth) before the routes, @UseGuards, Depends(get_current_user)).",
+      "If it's meant to be public, ask the user, then mark it explicitly (a comment, AllowAny, @Public()) so the next reader knows.",
+    ],
+    verify: "Calling it without a token returns 401; with a valid token it works as before.",
+  },
+  "admin-without-role": {
+    name: "Admin routes any user can call",
+    category: "security", safety: "ask-first",
+    why: "Logged in isn't the same as allowed: any user can call admin actions (OWASP Broken Access Control).",
+    fix: ["Add a role check after the auth check (requireRole(\"admin\"), @Roles(\"admin\") with a RolesGuard, IsAdminUser).", "Check the role on the server; hiding the admin page in the frontend isn't a check."],
+    verify: "A normal user's token gets 403; an admin's still works.",
+  },
+  "missing-ownership-check": {
+    name: "Records loaded by id with no owner check (IDOR)",
+    category: "security", safety: "ask-first",
+    why: "Change the id in the URL and you get someone else's record: the most common critical bug in AI-built apps (broken object-level authorization).",
+    fix: [
+      "Scope the query to the caller: findOne({ _id: id, userId: req.user.id }), or WHERE id = $1 AND owner_id = $2.",
+      "Or load it, then return 404 when it belongs to someone else (404, not 403, so ids can't be probed).",
+    ],
+    verify: "User A asking for user B's record by id gets 404; their own still works.",
+  },
+  "auth-without-rate-limit": {
+    name: "Login and sign-up with no rate limit",
+    category: "security", safety: "ask-first",
+    why: "Without a limit, passwords and codes can be guessed by brute force, and fake accounts created in bulk.",
+    fix: ["Add a limiter to these routes (express-rate-limit, @nestjs/throttler, slowapi): e.g. 5 tries per minute per IP and per account."],
+    verify: "The 6th quick attempt gets 429; normal logins still work.",
+  },
+  "no-auth-at-all": {
+    name: "No authentication anywhere",
+    category: "security", safety: "ask-first",
+    why: "Every endpoint, including the ones that change or delete data, can be called by anyone.",
+    fix: ["Ask whether this app is meant to be public. If not, add authentication (a provider like Clerk/Auth0/Supabase Auth, or your framework's), and guard every route that changes data."],
+    verify: "Write endpoints return 401 without a token.",
+  },
   "money-float": {
     name: "Money stored as a float",
     category: "database", safety: "ask-first",

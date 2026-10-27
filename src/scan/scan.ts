@@ -14,6 +14,7 @@ import { findCrossStack, type CrossStack } from "../rules/crossStack/check.ts";
 import { htmlCallsIn } from "../rules/crossStack/htmlCalls.ts";
 import type { FileApi } from "../rules/crossStack/types.ts";
 import { DATABASE_RULES, moneyInSchemaText, usesDatabase } from "../rules/database/index.ts";
+import { findEndpointIssues } from "../rules/security/endpoints.ts";
 import { runLineRules, type LineFinding } from "../rules/line/index.ts";
 import { readTexts } from "../index/texts.ts";
 
@@ -31,11 +32,15 @@ export interface ScanResult {
   crossStack: CrossStack;
   hygiene: LineFinding[]; // without findings in dead files: the fix there is deleting the file
   database: LineFinding[]; // same, for the database checks
+  security: LineFinding[];
   hasDatabase: boolean; // a database library or schema file was found
   history: History;
   hotspots: Hotspot[];
   seconds: number;
 }
+
+const RATE_LIMIT_LIBRARY = /^(express-rate-limit|express-slow-down|rate-limiter-flexible|@fastify\/rate-limit|hono-rate-limiter|@upstash\/ratelimit|@nestjs\/throttler|koa-ratelimit|slowapi|flask_limiter|django_ratelimit|ratelimit|fastapi_limiter)/;
+const SECURITY_RULES = new Set<string>(); // per-line security rules: filled in as they're added
 
 export async function scanRepo(root: string): Promise<ScanResult> {
   const started = Date.now();
@@ -82,12 +87,17 @@ export async function scanRepo(root: string): Promise<ScanResult> {
 
   const imports = new Map([...index.usage].map(([file, u]) => [file, u.imports]));
   const crossStack = findCrossStack(apis, imports, await htmlCallsIn(root, index.allFiles));
+  // Rate limiting may be set up in ways we can't trace (a gateway, a global limiter): if a
+  // library is there, a route without one is only a hint.
+  const rateLimitLibrary = [...imports.values()].some((list) => list.some((i) => RATE_LIMIT_LIBRARY.test(i.source)));
+  const endpointIssues = findEndpointIssues({ routes: crossStack.allRoutes, functions: index.functions, texts: await readTexts(root, index.files), rateLimitLibrary });
   const history = await gitHistory(root);
   return {
     root, index, skipped: unsupportedCode(index.allFiles), groups, differences, dead, deadFiles, crossStack,
-    hygiene: live.filter((f) => !DATABASE_RULES.has(f.rule)),
+    hygiene: live.filter((f) => !DATABASE_RULES.has(f.rule) && !SECURITY_RULES.has(f.rule)),
     database: live.filter((f) => DATABASE_RULES.has(f.rule)),
     hasDatabase: usesDatabase(imports.values(), index.allFiles),
+    security: [...endpointIssues, ...live.filter((f) => SECURITY_RULES.has(f.rule))],
     history, hotspots: history.ok ? findHotspots(history.changes, sizes) : [],
     seconds: (Date.now() - started) / 1000,
   };
