@@ -53,7 +53,7 @@ db.query("SELECT id FROM bugs WHERE title LIKE ?", [q + "%"]);
 Post.find({ title: { $regex: q, $options: "i" } });
 `;
   assert.deepEqual(await check("q.js", js), [
-    "1 insert-without-columns likely", "3 select-star maybe", "5 order-by-random maybe", "6 leading-wildcard-search maybe", "8 leading-wildcard-search maybe",
+    "1 insert-without-columns likely", "3 select-star maybe", "5 order-by-random maybe", "6 leading-wildcard-search maybe", "8 leading-wildcard-search maybe", "6 sql-injection maybe",
   ]);
   assert.deepEqual(await check("v.py", `Post.objects.filter(title__icontains=q, author=u)\n`), ["1 leading-wildcard-search maybe"]);
 });

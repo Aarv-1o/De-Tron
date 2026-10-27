@@ -27,3 +27,11 @@ export function* walk(node: Node): Generator<Node> {
 }
 
 export const lineOf = (node: Node) => node.startPosition.row + 1;
+
+// Findings for one file, and how rules add to them: add(node, rule, confidence, message).
+export function collector(file: string) {
+  const found: LineFinding[] = [];
+  const add = (node: Node, rule: string, confidence: Confidence, message: string) =>
+    void found.push({ rule, file, line: lineOf(node), confidence, message });
+  return { found, add };
+}

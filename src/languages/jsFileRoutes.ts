@@ -72,7 +72,8 @@ export function nestGlobalPrefix(prop: string, call: Node, api: FileApi): boolea
   return true;
 }
 
-// consumer.apply(AuthMiddleware).forRoutes({ path: "user", method: RequestMethod.GET }, ArticleController)
+// NestJS middleware applied in a module: consumer.apply(...) then forRoutes() with paths, a
+// { path, method } object, or a controller class.
 export function nestMiddleware(root: Node, api: FileApi): void {
   for (const node of descendants(root)) {
     if (node.type !== "call_expression" || !/\.forRoutes$/.test(node.childForFieldName("function")?.text ?? "")) continue;

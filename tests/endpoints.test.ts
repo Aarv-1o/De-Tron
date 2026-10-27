@@ -8,7 +8,7 @@ async function security(files: Record<string, string>): Promise<string[]> {
   return result.security.map((f) => `${f.rule} ${f.confidence} ${f.file}:${f.line}`).sort();
 }
 
-const PKG = JSON.stringify({ dependencies: { express: "4.21.0" } });
+const PKG = JSON.stringify({ dependencies: { express: "^4.21.0" } });
 
 test("Express: missing auth, admin without role, IDOR, login without rate limit; guards from mounts and use()", async () => {
   const found = await security({

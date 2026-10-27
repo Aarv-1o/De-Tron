@@ -15,6 +15,7 @@ import { htmlCallsIn } from "../rules/crossStack/htmlCalls.ts";
 import type { FileApi } from "../rules/crossStack/types.ts";
 import { DATABASE_RULES, moneyInSchemaText, usesDatabase } from "../rules/database/index.ts";
 import { findEndpointIssues } from "../rules/security/endpoints.ts";
+import { committedEnvFiles, CRASH_RULES, SECURITY_RULES } from "../rules/security/index.ts";
 import { runLineRules, type LineFinding } from "../rules/line/index.ts";
 import { readTexts } from "../index/texts.ts";
 
@@ -33,6 +34,7 @@ export interface ScanResult {
   hygiene: LineFinding[]; // without findings in dead files: the fix there is deleting the file
   database: LineFinding[]; // same, for the database checks
   security: LineFinding[];
+  crashes: LineFinding[];
   hasDatabase: boolean; // a database library or schema file was found
   history: History;
   hotspots: Hotspot[];
@@ -40,7 +42,6 @@ export interface ScanResult {
 }
 
 const RATE_LIMIT_LIBRARY = /^(express-rate-limit|express-slow-down|rate-limiter-flexible|@fastify\/rate-limit|hono-rate-limiter|@upstash\/ratelimit|@nestjs\/throttler|koa-ratelimit|slowapi|flask_limiter|django_ratelimit|ratelimit|fastapi_limiter)/;
-const SECURITY_RULES = new Set<string>(); // per-line security rules: filled in as they're added
 
 export async function scanRepo(root: string): Promise<ScanResult> {
   const started = Date.now();
@@ -91,13 +92,22 @@ export async function scanRepo(root: string): Promise<ScanResult> {
   // library is there, a route without one is only a hint.
   const rateLimitLibrary = [...imports.values()].some((list) => list.some((i) => RATE_LIMIT_LIBRARY.test(i.source)));
   const endpointIssues = findEndpointIssues({ routes: crossStack.allRoutes, functions: index.functions, texts: await readTexts(root, index.files), rateLimitLibrary });
+  // Findings that depend on the whole repo: Express 5 (or express-async-errors) catches async
+  // errors; a hashing library anywhere means passwords may be hashed in a model hook.
+  const manifest = await readTexts(root, index.allFiles.filter((f) => /(^|\/)package\.json$/.test(f)));
+  const deps = [...manifest.values()].join("\n");
+  // Only Express 4 leaves async errors uncaught: Koa, Hono, Fastify, Nest and Express 5 catch them.
+  const express4 = /"express"\s*:\s*"[\^~>=]*4/.test(deps) && !/"express-async-errors"|"express-async-handler"|"express-promise-router"/.test(deps);
+  const hashes = [...imports.values()].some((list) => list.some((i) => /^(bcrypt|bcryptjs|argon2|@node-rs\/(argon2|bcrypt)|passlib|werkzeug\.security|django\.contrib\.auth)/.test(i.source)));
+  const keep = (f: LineFinding) => !(f.rule === "async-handler-no-catch" && !express4) && !(f.rule === "plaintext-password" && hashes);
   const history = await gitHistory(root);
   return {
     root, index, skipped: unsupportedCode(index.allFiles), groups, differences, dead, deadFiles, crossStack,
-    hygiene: live.filter((f) => !DATABASE_RULES.has(f.rule) && !SECURITY_RULES.has(f.rule)),
+    hygiene: live.filter((f) => !DATABASE_RULES.has(f.rule) && !SECURITY_RULES.has(f.rule) && !CRASH_RULES.has(f.rule)),
     database: live.filter((f) => DATABASE_RULES.has(f.rule)),
     hasDatabase: usesDatabase(imports.values(), index.allFiles),
-    security: [...endpointIssues, ...live.filter((f) => SECURITY_RULES.has(f.rule))],
+    security: [...endpointIssues, ...committedEnvFiles(index.allFiles), ...live.filter((f) => SECURITY_RULES.has(f.rule) && keep(f))],
+    crashes: live.filter((f) => CRASH_RULES.has(f.rule) && keep(f)),
     history, hotspots: history.ok ? findHotspots(history.changes, sizes) : [],
     seconds: (Date.now() - started) / 1000,
   };

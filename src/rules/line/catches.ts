@@ -1,6 +1,6 @@
 import type { Node } from "web-tree-sitter";
 import type { Syntax } from "../../languages/types.ts";
-import { lineOf, walk, type FileContext, type LineFinding } from "./types.ts";
+import { collector, walk, type FileContext, type LineFinding } from "./types.ts";
 
 const DEFAULT_RETURN = /^return\s*(null|undefined|None|\[\s*\]|\{\s*\}|''|""|false|False|0|-1)?\s*;?$/;
 
@@ -23,9 +23,7 @@ function onlyRethrows(statements: Node[], variable: string | undefined, syntax: 
 
 // Catch blocks that hide failures, or do nothing at all.
 export function catchRules({ parsed, file, syntax, frontend }: FileContext): LineFinding[] {
-  const found: LineFinding[] = [];
-  const add = (node: Node, rule: string, confidence: LineFinding["confidence"], message: string) =>
-    found.push({ rule, file, line: lineOf(node), confidence, message });
+  const { found, add } = collector(file);
 
   for (const node of walk(parsed.tree.rootNode)) {
     if (node.type !== syntax.catchClause) continue;

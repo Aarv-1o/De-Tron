@@ -5,7 +5,7 @@ import type { Finding } from "../findings/types.ts";
 // why/fix/check is said once. Things that fail at runtime come first; hotspots (warnings,
 // not tasks) last.
 
-const ORDER: Finding["category"][] = ["frontend-backend", "security", "database", "hygiene", "copies", "dead-code", "hotspot"];
+const ORDER: Finding["category"][] = ["security", "crash", "frontend-backend", "database", "hygiene", "copies", "dead-code", "hotspot"];
 const ERRORS_FIRST = ["empty-catch", "catch-only-logs", "catch-returns-default"];
 const SAFETY = { safe: "safe to fix on its own", "ask-first": "ask the user first", warning: "a warning, not a task" };
 

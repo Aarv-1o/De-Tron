@@ -12,7 +12,7 @@ export interface Place {
 export interface Finding {
   id: string; // stable across runs while the code doesn't move: "long-params:src/a.ts:41"
   rule: string;
-  category: "copies" | "dead-code" | "frontend-backend" | "hygiene" | "hotspot" | "database" | "security";
+  category: "copies" | "dead-code" | "frontend-backend" | "hygiene" | "hotspot" | "database" | "security" | "crash";
   confidence: Confidence;
   file: string;
   line: number;
