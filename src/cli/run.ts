@@ -4,6 +4,8 @@ import { parseArgs } from "node:util";
 import { unsupportedCode } from "../index/files.ts";
 import { buildIndex } from "../index/repo.ts";
 import { extractUsage } from "../index/usage.ts";
+import { supportFor } from "../languages/index.ts";
+import { crossStackToJson, formatCrossStack } from "../report/crossStack.ts";
 import { deadCodeToJson, formatDeadCode, type DeadCode } from "../report/deadCode.ts";
 import { duplicatesToJson, formatDuplicates } from "../report/duplicates.ts";
 import { formatHygiene } from "../report/hygiene.ts";
@@ -13,12 +15,16 @@ import { findDuplicates, type DuplicateGroup } from "../rules/codebase/duplicate
 import { findFunctionShapeIssues } from "../rules/codebase/functionShape.ts";
 import { findUnusedFiles } from "../rules/codebase/unusedFiles.ts";
 import { findUnusedPackages } from "../rules/codebase/unusedPackages.ts";
+import { findCrossStack } from "../rules/crossStack/check.ts";
+import { htmlCallsIn } from "../rules/crossStack/htmlCalls.ts";
+import type { FileApi } from "../rules/crossStack/types.ts";
 import { runLineRules, type LineFinding } from "../rules/line/index.ts";
 
 const HELP = `Detron: stops AI coding agents from making a mess of your codebase.
 
 Usage:
-  detron scan [path]    Find copied code, dead code and code hygiene issues in a repo
+  detron scan [path]    Find copied code, dead code, frontend/backend mismatches and
+                        code hygiene issues in a repo
                         (default: current folder)
 
 Options:
@@ -45,10 +51,12 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
   }
   const started = Date.now();
   const hygiene: LineFinding[] = [];
+  const apis = new Map<string, FileApi>();
   const index = await buildIndex(root, {
     onFile: async (parsed, file) => {
       const imports = extractUsage(parsed).imports.map((i) => i.source);
       hygiene.push(...(await runLineRules(parsed, file, imports)));
+      apis.set(file, supportFor(parsed.language).extractApi(parsed.tree.rootNode, file));
     },
   });
   hygiene.push(...findFunctionShapeIssues(index.functions));
@@ -72,13 +80,17 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
   // Issues inside a file that's dead as a whole are noise: the fix is deleting the file.
   const deadFiles = new Set(dead.files.map((f) => f.file));
   const liveHygiene = hygiene.filter((f) => !deadFiles.has(f.file));
+  for (const file of deadFiles) apis.delete(file);
+  const imports = new Map([...index.usage].map(([file, u]) => [file, u.imports]));
+  const crossStack = findCrossStack(apis, imports, await htmlCallsIn(root, index.allFiles));
 
   if (json) {
     const report = {
       root, files: index.files.length, functions: index.functions.length,
       skippedFiles: Object.fromEntries(skipped),
       filesWithSyntaxErrors: index.filesWithSyntaxErrors,
-      duplicates: duplicatesToJson(groups, differences), deadCode: deadCodeToJson(dead), hygiene: liveHygiene,
+      duplicates: duplicatesToJson(groups, differences), deadCode: deadCodeToJson(dead),
+      crossStack: crossStackToJson(crossStack), hygiene: liveHygiene,
     };
     out(`${JSON.stringify(report, null, 2)}\n`);
     return 0;
@@ -93,6 +105,7 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
   out("\n");
   out(formatDuplicates(groups, all, differences, deadFiles));
   out(`\n${formatDeadCode(dead, all)}`);
+  out(`\n${formatCrossStack(crossStack, all)}`);
   out(`\n${formatHygiene(liveHygiene, all)}`);
   if (index.filesWithSyntaxErrors.length) {
     out(`\nNote: ${index.filesWithSyntaxErrors.length} file(s) have syntax Detron couldn't fully read, so results there may be incomplete:\n`);
