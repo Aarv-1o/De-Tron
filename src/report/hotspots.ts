@@ -1,15 +1,13 @@
-import type { History, Hotspot } from "../rules/codebase/hotspots.ts";
+import { worthFlagging, type History, type Hotspot } from "../rules/codebase/hotspots.ts";
 
 const SHOWN = 5;
-// A small file with nothing wrong isn't worth cleaning first, however often it changes.
-const MIN_LINES = 150;
 const SHOWN_ALL = 10;
 const num = (n: number) => n.toLocaleString("en-US");
 
 // `findings`: how many other Detron findings each file has, so "clean here first" has a starting point.
 export function formatHotspots(history: History, hotspots: Hotspot[], findings: Map<string, number>, showAll: boolean): string {
   if (!history.ok) return `Hotspots: not checked (${history.reason}).\n`;
-  const worth = hotspots.filter((h) => h.lines >= MIN_LINES || findings.has(h.file));
+  const worth = hotspots.filter((h) => worthFlagging(h, findings.has(h.file)));
   if (!worth.length) return "No hotspots found (the files that change most are small and have no findings).\n";
   const shown = worth.slice(0, showAll ? SHOWN_ALL : SHOWN);
   const cells = shown.map((h) => ({
@@ -24,16 +22,12 @@ export function formatHotspots(history: History, hotspots: Hotspot[], findings: 
   );
   const more = !showAll && worth.length > shown.length ? [`  ${worth.length - shown.length} more with --all.`] : [];
   return [
-    `Hotspots: complex files that change often (from ${history.commits} commits)`,
+    `Hotspots: complex files that change often, where changes break things most (from ${history.commits} commits)`,
     "",
     ...lines,
-    "     → Clean these first. Messy files that rarely change can wait.",
+    "     → Not a to-do list. When a task changes one of these: test the part you change first,",
+    "       and keep cleanup in its own commit. Messy files that rarely change can wait.",
     ...more,
     "",
   ].join("\n");
-}
-
-export function hotspotsToJson(history: History, hotspots: Hotspot[]) {
-  if (!history.ok) return { checked: false, reason: history.reason };
-  return { checked: true, commits: history.commits, files: hotspots.map((h) => ({ ...h, score: Number(h.score.toFixed(3)) })) };
 }

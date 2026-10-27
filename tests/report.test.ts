@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fakeFunction } from "./helpers.ts";
-import { duplicatesToJson, formatDuplicates } from "../src/report/duplicates.ts";
+import { formatDuplicates } from "../src/report/duplicates.ts";
 import type { DuplicateGroup } from "../src/rules/codebase/duplicates.ts";
 
 const fn = (name: string, file: string, startLine: number) => fakeFunction({ name, file, startLine });
@@ -34,9 +34,4 @@ test("text report: copies in unused files are marked; only-hints says so", () =>
 
 test("text report: says so when there is nothing", () => {
   assert.equal(formatDuplicates([], false), "No copies found.\n");
-});
-
-test("JSON leaves out internal body shapes", () => {
-  const json = duplicatesToJson(groups);
-  assert.deepEqual(Object.keys(json[0]!.functions[0]!).sort(), ["endLine", "file", "language", "name", "startLine"]);
 });

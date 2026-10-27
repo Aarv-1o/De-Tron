@@ -77,6 +77,10 @@ export function indentComplexity(text: string, skipRows: Set<number> = new Set()
   return { lines, complexity: Math.round(widths.reduce((sum, w) => sum + w / step, 0)) };
 }
 
+// A small file with nothing wrong isn't worth flagging, however often it changes.
+const MIN_LINES = 150;
+export const worthFlagging = (h: Hotspot, hasFindings: boolean) => h.lines >= MIN_LINES || hasFindings;
+
 export function findHotspots(changes: Map<string, number>, sizes: Map<string, FileSize>): Hotspot[] {
   const rows = [...sizes].flatMap(([file, size]) => {
     const n = changes.get(file) ?? 0;

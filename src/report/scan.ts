@@ -1,8 +1,9 @@
 import type { ScanResult } from "../scan/scan.ts";
-import { crossStackToJson, formatCrossStack } from "./crossStack.ts";
-import { deadCodeToJson, formatDeadCode } from "./deadCode.ts";
-import { duplicatesToJson, formatDuplicates } from "./duplicates.ts";
-import { formatHotspots, hotspotsToJson } from "./hotspots.ts";
+import type { Finding } from "../findings/types.ts";
+import { formatCrossStack } from "./crossStack.ts";
+import { formatDeadCode } from "./deadCode.ts";
+import { formatDuplicates } from "./duplicates.ts";
+import { formatHotspots } from "./hotspots.ts";
 import { formatHygiene } from "./hygiene.ts";
 
 // How many of the findings shown above are in each file.
@@ -43,12 +44,16 @@ export function formatScan(r: ScanResult, all: boolean): string {
   return parts.join("");
 }
 
-export function scanToJson(r: ScanResult) {
+// The same findings --agent shows, plus what was and wasn't checked.
+export function scanToJson(r: ScanResult, findings: Finding[]) {
   return {
     root: r.root, files: r.index.files.length, functions: r.index.functions.length,
     skippedFiles: Object.fromEntries(r.skipped),
     filesWithSyntaxErrors: r.index.filesWithSyntaxErrors,
-    duplicates: duplicatesToJson(r.groups, r.differences), deadCode: deadCodeToJson(r.dead),
-    crossStack: crossStackToJson(r.crossStack), hygiene: r.hygiene, hotspots: hotspotsToJson(r.history, r.hotspots),
+    checked: {
+      frontendBackend: { calls: r.crossStack.calls, routes: r.crossStack.routes },
+      hotspots: r.history.ok ? { commits: r.history.commits } : { skipped: r.history.reason },
+    },
+    findings,
   };
 }

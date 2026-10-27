@@ -54,16 +54,3 @@ export function formatCrossStack(found: CrossStack, showHints: boolean): string 
   if (hidden) lines.push(`  ${hiddenNote(hidden)}`, "");
   return `Frontend and backend (${checked})\n\n${lines.join("\n")}`;
 }
-
-export function crossStackToJson(found: CrossStack) {
-  const route = (r: UnusedRoute["route"]) => ({ method: r.method, path: r.path.text, file: r.file, line: r.line });
-  return {
-    routes: found.routes,
-    calls: found.calls,
-    missing: found.missing.map((m) => ({
-      kind: m.kind, confidence: m.confidence, file: m.file, line: m.line, method: m.method ?? null, path: m.path.text,
-      ...(m.closest ? { closest: route(m.closest) } : {}),
-    })),
-    unused: found.unused.map((u) => ({ confidence: u.confidence, ...route(u.route) })),
-  };
-}

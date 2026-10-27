@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fakeFunction } from "./helpers.ts";
-import { deadCodeToJson, formatDeadCode, type DeadCode } from "../src/report/deadCode.ts";
+import { formatDeadCode, type DeadCode } from "../src/report/deadCode.ts";
 
 const fn = (name: string, file: string) => fakeFunction({ name, file, exported: true });
 
@@ -38,7 +38,6 @@ test("dead code report: hides hints, and doesn't repeat functions from dead file
   assert.match(formatDeadCode(found, true), /try\.py/);
 });
 
-test("dead code report: empty, and JSON", () => {
+test("dead code report: says so when there is nothing", () => {
   assert.equal(formatDeadCode({ packages: [], files: [], functions: [] }, false), "No dead code found.\n");
-  assert.deepEqual(Object.keys(deadCodeToJson(found).functions[0]!).sort(), ["confidence", "endLine", "file", "name", "reason", "startLine"]);
 });
