@@ -2,8 +2,8 @@ import { posix } from "node:path";
 import type { Node } from "web-tree-sitter";
 import type { FunctionInfo } from "../index/functions.ts";
 import type { ImportInfo } from "../index/usage.ts";
-import { commonInfo, descendants, enclosingClass, unquote } from "./nodes.ts";
-import type { LanguageSupport } from "./types.ts";
+import { commonInfo, descendants, enclosingClass, valueReferences, unquote } from "./nodes.ts";
+import type { LanguageSupport, Syntax } from "./types.ts";
 
 const FUNCTION_TYPES = new Set([
   "function_declaration", "generator_function_declaration", "function_expression",
@@ -77,6 +77,22 @@ function defaultExportName(root: Node): string | undefined {
 const FRONTEND_PATH = /(^|\/)(components|pages|views|static|public|client|frontend|web|ui)\//;
 const FRONTEND_IMPORT = /^(react|react-dom|vue|svelte|solid-js|preact)(\/|$)/;
 
+const syntax: Syntax = {
+  catchClause: "catch_clause",
+  catchBody: (clause) => clause.childForFieldName("body") ?? undefined,
+  catchVariable: (clause) => clause.childForFieldName("parameter")?.text,
+  catchType: () => undefined,
+  throwStatement: "throw_statement",
+  emptyStatement: undefined,
+  nesting: ["if_statement", "for_statement", "for_in_statement", "while_statement", "do_statement", "try_statement", "switch_statement"],
+  functionTypes: [...FUNCTION_TYPES],
+  callType: "call_expression",
+  logCall: /^(console|logger|log)\.\w+\(/,
+  commentText: (comment) => comment.replace(/^\/\/+|^\/\*+|\*+\/$/g, "").trim(),
+  looksLikeCode:
+    /^(const |let |var |if ?\(|for ?\(|return\b|import |export |await |console\.|\}|[\w.[\]'"]+\(.*\);?$|[\w.[\]]+ ?= ?[^=].*;$|<\/?[A-Z]\w*)/,
+};
+
 export const javascript: LanguageSupport = {
   family: "js",
   label: "JS/TS",
@@ -95,6 +111,7 @@ export const javascript: LanguageSupport = {
     const exported = exportedNames(root);
     const defaultName = defaultExportName(root);
     const found: FunctionInfo[] = [];
+    const valueRefs = valueReferences(root, syntax);
     for (const node of descendants(root)) {
       if (!FUNCTION_TYPES.has(node.type)) continue;
       const name = nameOf(node);
@@ -103,8 +120,7 @@ export const javascript: LanguageSupport = {
       const exportNode = exportAncestor(node);
       const property = node.parent?.type === "pair" || (node.type === "method_definition" && !className);
       found.push({
-        ...commonInfo(node, name, file, id),
-        params: paramsOf(node),
+        ...commonInfo(node, name, file, id, syntax, paramsOf(node), valueRefs),
         className,
         kind: className ? "method" : property ? "property" : "function",
         decorated: false,
@@ -149,17 +165,5 @@ export const javascript: LanguageSupport = {
     /\.[jt]sx$/.test(file) || FRONTEND_PATH.test(file) || imports.some((i) => FRONTEND_IMPORT.test(i)),
   unusedExportReason: "Exported, but nothing uses it.",
 
-  syntax: {
-    catchClause: "catch_clause",
-    catchBody: (clause) => clause.childForFieldName("body") ?? undefined,
-    catchVariable: (clause) => clause.childForFieldName("parameter")?.text,
-    catchType: () => undefined,
-    throwStatement: "throw_statement",
-    emptyStatement: undefined,
-    nesting: ["if_statement", "for_statement", "for_in_statement", "while_statement", "do_statement", "try_statement", "switch_statement"],
-    logCall: /^(console|logger|log)\.\w+\(/,
-    commentText: (comment) => comment.replace(/^\/\/+|^\/\*+|\*+\/$/g, "").trim(),
-    looksLikeCode:
-      /^(const |let |var |if ?\(|for ?\(|return\b|import |export |await |console\.|\}|[\w.[\]'"]+\(.*\);?$|[\w.[\]]+ ?= ?[^=].*;$|<\/?[A-Z]\w*)/,
-  },
+  syntax,
 };

@@ -31,6 +31,8 @@ export interface Syntax {
   throwStatement: string; // "throw_statement", "raise_statement"
   emptyStatement: string | undefined; // Python's "pass"
   nesting: string[]; // statements that add a level of nesting
+  functionTypes: string[]; // function and lambda nodes: nesting and names stop at them
+  callType: string; // "call_expression", "call"
   logCall: RegExp; // a statement that only logs: console.error(...), print(...)
   commentText(comment: string): string; // the words of a comment, without // or #
   looksLikeCode: RegExp; // a comment that is really commented-out code

@@ -1,13 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { FunctionInfo } from "../src/index/functions.ts";
+import { fakeFunction } from "./helpers.ts";
 import { duplicatesToJson, formatDuplicates } from "../src/report/duplicates.ts";
 import type { DuplicateGroup } from "../src/rules/codebase/duplicates.ts";
 
-const fn = (name: string, file: string, startLine: number): FunctionInfo => ({
-  name, file, startLine, endLine: startLine + 9, language: "typescript", params: [],
-  className: undefined, kind: "function", decorated: false, defaultExport: false, exported: false, async: false, shape: ["internal"],
-});
+const fn = (name: string, file: string, startLine: number) => fakeFunction({ name, file, startLine });
 
 const groups: DuplicateGroup[] = [
   { kind: "exact", confidence: "sure", sharedValues: ["just now", "m ago"], functions: [fn("timeAgo", "a.ts", 3), fn("fileTimeAgo", "b.ts", 8)] },

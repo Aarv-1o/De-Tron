@@ -1,7 +1,7 @@
 import type { Node } from "web-tree-sitter";
 import type { FunctionInfo } from "../index/functions.ts";
 import { shapeOf } from "../index/shape.ts";
-import type { LanguageId } from "./types.ts";
+import type { LanguageId, Syntax } from "./types.ts";
 
 export function* descendants(node: Node): Generator<Node> {
   for (const child of node.namedChildren) {
@@ -20,15 +20,64 @@ export function enclosingClass(node: Node, classType: string): string | undefine
 // The text inside a string literal node: 'x', "x" and `x` all give x.
 export const unquote = (node: Node) => node.text.replace(/^['"`]|['"`]$/g, "");
 
+// Deepest nesting of if/for/while/try inside a body. Stops at inner functions, and an
+// `else if` chain counts as one level, not one more per branch.
+function nestingDepth(node: Node, syntax: Syntax): number {
+  let deepest = 0;
+  for (const child of node.namedChildren) {
+    if (syntax.functionTypes.includes(child.type)) continue;
+    const elseIf = child.type === "if_statement" && node.type === "else_clause";
+    const adds = syntax.nesting.includes(child.type) && !elseIf ? 1 : 0;
+    deepest = Math.max(deepest, adds + nestingDepth(child, syntax));
+  }
+  return deepest;
+}
+
+function namesIn(node: Node): Set<string> {
+  const names = new Set<string>();
+  for (const n of descendants(node)) if (n.type === "identifier" || n.type === "shorthand_property_identifier") names.add(n.text);
+  return names;
+}
+
+// Names used as values in a file: passed as a callback, registered as a handler, rendered as
+// <Component />. Calls (name()) and definitions don't count.
+export function valueReferences(root: Node, syntax: Syntax): Set<string> {
+  const refs = new Set<string>();
+  for (const node of descendants(root)) {
+    if (node.type !== "identifier") continue;
+    const parent = node.parent;
+    if (!parent) continue;
+    const field = (name: string) => parent.childForFieldName(name)?.startIndex === node.startIndex;
+    if (parent.type === syntax.callType && field("function")) continue;
+    if ((syntax.functionTypes.includes(parent.type) || parent.type === "variable_declarator") && field("name")) continue;
+    refs.add(node.text);
+  }
+  return refs;
+}
+
 // The parts of a FunctionInfo that every language fills in the same way.
-export function commonInfo(node: Node, name: string, file: string, language: LanguageId) {
+export function commonInfo(
+  node: Node,
+  name: string,
+  file: string,
+  language: LanguageId,
+  syntax: Syntax,
+  params: string[],
+  valueRefs: Set<string>,
+) {
+  const body = node.childForFieldName("body") ?? node;
+  const used = namesIn(body);
   return {
     name,
     file,
     language,
     startLine: node.startPosition.row + 1,
     endLine: node.endPosition.row + 1,
+    params,
     async: node.children.some((c) => c.type === "async"),
-    shape: shapeOf(node.childForFieldName("body") ?? node),
+    nesting: nestingDepth(body, syntax),
+    unusedParams: params.filter((p) => /^\w+$/.test(p) && !used.has(p)),
+    passedAsValue: valueRefs.has(name),
+    shape: shapeOf(body),
   } satisfies Partial<FunctionInfo>;
 }

@@ -115,3 +115,29 @@ const tool = { handler() {}, run: async () => {} };
   assert.equal(py.root?.decorated, true);
   assert.equal(py.plain?.decorated, false);
 });
+
+test("records nesting depth, unused params and use as a value", async () => {
+  const js = byName(await extract(`
+function deep(a, b, c) {
+  if (a) { for (const x of a) { while (x) { try { if (b) { go(); } } catch {} } } }
+}
+function chain(x) {
+  if (x === 1) go(); else if (x === 2) go(); else if (x === 3) go(); else go();
+}
+function handler(req, res, next) { res.send(1); }
+router.get("/", handler);
+function direct(q, _unused) { return q; }
+direct(1);
+`, "javascript"));
+  assert.equal(js.deep?.nesting, 5);
+  assert.equal(js.chain?.nesting, 1, "an else-if chain is one level");
+  assert.deepEqual(js.deep?.unusedParams, ["c"]);
+  assert.deepEqual(js.handler?.unusedParams, ["req", "next"]);
+  assert.equal(js.handler?.passedAsValue, true);
+  assert.equal(js.direct?.passedAsValue, false);
+  assert.deepEqual(js.direct?.unusedParams, ["_unused"]);
+
+  const py = byName(await extract("def route(state):\n    return 'x'\n\ngraph.add_conditional_edges('a', route)\n", "python"));
+  assert.deepEqual(py.route?.unusedParams, ["state"]);
+  assert.equal(py.route?.passedAsValue, true);
+});

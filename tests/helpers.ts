@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { FunctionInfo } from "../src/index/functions.ts";
 import { extractUsage } from "../src/index/usage.ts";
 import { detectLanguage, parseSource } from "../src/parse/parse.ts";
 import { runLineRules } from "../src/rules/line/index.ts";
@@ -28,3 +29,11 @@ export async function check(file: string, source: string, rule?: string): Promis
     tree.delete();
   }
 }
+
+// A FunctionInfo for report tests, with sensible defaults.
+export const fakeFunction = (overrides: Partial<FunctionInfo> & Pick<FunctionInfo, "name" | "file">): FunctionInfo => ({
+  startLine: 3, endLine: 12, language: "typescript", params: [], className: undefined, kind: "function",
+  decorated: false, defaultExport: false, exported: false, async: false, nesting: 0, unusedParams: [],
+  passedAsValue: false, shape: ["internal"],
+  ...overrides,
+});
