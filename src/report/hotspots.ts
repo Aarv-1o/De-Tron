@@ -17,7 +17,7 @@ export function formatHotspots(history: History, hotspots: Hotspot[], findings: 
   }));
   const w = (key: keyof (typeof cells)[number]) => Math.max(...cells.map((c) => c[key].length));
   const lines = cells.map((c, i) =>
-    `  ${i + 1}. ${c.file.padEnd(w("file"))}  ${c.changes.padStart(w("changes"))}  ${c.lines.padStart(w("lines"))}  ${c.found}`.trimEnd(),
+    `  ${`${i + 1}.`.padEnd(String(cells.length).length + 1)} ${c.file.padEnd(w("file"))}  ${c.changes.padStart(w("changes"))}  ${c.lines.padStart(w("lines"))}  ${c.found}`.trimEnd(),
   );
   const more = hotspots.length > shown.length ? [`  ${hotspots.length - shown.length} more with --all.`] : [];
   return [
