@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { makeRepo } from "./helpers.ts";
 import { detectLanguage, parseFile, parseSource } from "../src/parse/parse.ts";
 
 test("detects languages by extension", () => {
@@ -30,10 +29,8 @@ test("parses each language without errors", async () => {
 });
 
 test("parseFile reads and parses a supported file", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "detron-"));
-  const path = join(dir, "util.py");
-  await writeFile(path, "def time_ago(ts):\n    return ts\n");
-  const parsed = await parseFile(path);
+  const dir = await makeRepo({ "util.py": "def time_ago(ts):\n    return ts\n" });
+  const parsed = await parseFile(join(dir, "util.py"));
   assert.ok(parsed);
   assert.equal(parsed.language, "python");
   assert.equal(parsed.tree.rootNode.type, "module");
@@ -41,8 +38,6 @@ test("parseFile reads and parses a supported file", async () => {
 });
 
 test("parseFile skips unsupported files", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "detron-"));
-  const path = join(dir, "notes.md");
-  await writeFile(path, "# hi");
-  assert.equal(await parseFile(path), undefined);
+  const dir = await makeRepo({ "notes.md": "# hi" });
+  assert.equal(await parseFile(join(dir, "notes.md")), undefined);
 });

@@ -10,6 +10,10 @@ export interface FunctionInfo {
   endLine: number;
   params: string[]; // names, or the raw text for destructured params
   className: string | undefined;
+  // How it gets called: "method" (class), "property" (object key, e.g. { handler() {} }), or "function".
+  kind: "function" | "method" | "property";
+  decorated: boolean; // Python decorators: often registers it with a framework (routes, fixtures)
+  defaultExport: boolean;
   exported: boolean; // JS/TS: exported from the module. Python: public top-level name.
   async: boolean;
   shape: string[]; // see shapeOf: used to spot copies
@@ -93,17 +97,28 @@ function jsExportedNames(root: Node): Set<string> {
   return names;
 }
 
-function hasExportAncestor(node: Node): boolean {
+function exportAncestor(node: Node): Node | undefined {
   for (let p = node.parent, depth = 0; p && depth < 4; p = p.parent, depth++) {
-    if (p.type === "export_statement") return true;
+    if (p.type === "export_statement") return p;
   }
-  return false;
+  return undefined;
+}
+
+// `export default function X` or `export default X`
+function jsDefaultExportName(root: Node): string | undefined {
+  for (const node of root.namedChildren) {
+    if (node.type !== "export_statement" || !node.children.some((c) => c.type === "default")) continue;
+    const value = node.childForFieldName("value");
+    if (value?.type === "identifier") return value.text;
+  }
+  return undefined;
 }
 
 export function extractFunctions(parsed: ParsedFile, file: string): FunctionInfo[] {
   const root = parsed.tree.rootNode;
   const isPython = parsed.language === "python";
   const exportedNames = isPython ? new Set<string>() : jsExportedNames(root);
+  const defaultName = isPython ? undefined : jsDefaultExportName(root);
   const found: FunctionInfo[] = [];
 
   for (const node of descendants(root)) {
@@ -116,6 +131,8 @@ export function extractFunctions(parsed: ParsedFile, file: string): FunctionInfo
     // Compare by type: web-tree-sitter hands out a new Node object on every access.
     const holder = node.parent?.type === "decorated_definition" ? node.parent.parent : node.parent;
     const topLevel = holder?.type === "module";
+    const exportNode = isPython ? undefined : exportAncestor(node);
+    const property = node.parent?.type === "pair" || (node.type === "method_definition" && !className);
 
     found.push({
       name,
@@ -125,9 +142,12 @@ export function extractFunctions(parsed: ParsedFile, file: string): FunctionInfo
       endLine: node.endPosition.row + 1,
       params: isPython ? pyParams(node) : jsParams(node),
       className,
+      kind: className ? "method" : property ? "property" : "function",
+      decorated: node.parent?.type === "decorated_definition",
+      defaultExport: !!exportNode?.children.some((c) => c.type === "default") || (!className && name === defaultName),
       exported: isPython
         ? topLevel && !name.startsWith("_")
-        : !className && (hasExportAncestor(node) || exportedNames.has(name)),
+        : !className && (!!exportNode || exportedNames.has(name)),
       async: node.children.some((c) => c.type === "async"),
       shape: shapeOf(node.childForFieldName("body") ?? node),
     });

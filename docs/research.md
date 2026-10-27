@@ -90,3 +90,20 @@ What made the difference:
 - Requiring shared *wording* ("just now", error messages), not shared one-word codes.
 - Judging how rare a value is relative to repo size: a value copied 10 times is the signal.
 - Skipping icons, whole pages, module factories (120+ lines) and nested helpers.
+
+## Dead code detection v1 results (Oct 2026)
+
+- **Unused packages:** Escrows-AI: three, @react-three/drei, @react-three/fiber,
+  @types/three, openai (51.5 MB). 5 of 5 real, same as knip. Detron itself: none,
+  after fixing a false alarm (grammar packages loaded through a runtime path string).
+- **Unused files:** Travscape: both leftover orchestrator files. Escrows-AI and
+  BlogManager: none.
+- **Dead functions:** Escrows-AI: planAllows, getStorageLimitMB, brokerKillSwitch,
+  stopScheduler. 4 of 4 real (only mentioned in a comment, or nowhere).
+- **Dogfooding:** Detron found `listSourceFiles` dead in its own code (only tests
+  used it). Removed.
+
+Known gaps:
+- A file whose name is a common word (`blog.py`) counts as "mentioned" almost
+  everywhere, so it's never reported. Safe, but it misses some dead files.
+- Two functions with the same name hide each other: if one is used, both look used.

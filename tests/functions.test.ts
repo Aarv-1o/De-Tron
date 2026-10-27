@@ -94,3 +94,24 @@ class Planner:
   assert.equal(fns.plan?.exported, false);
   assert.equal(fns.inner?.exported, false);
 });
+
+test("records how each function gets called", async () => {
+  const js = byName(await extract(`
+export default function Page() {}
+function helper() {}
+class Store { load() {} }
+const tool = { handler() {}, run: async () => {} };
+`, "tsx"));
+  assert.equal(js.Page?.defaultExport, true);
+  assert.equal(js.helper?.kind, "function");
+  assert.equal(js.load?.kind, "method");
+  assert.equal(js.handler?.kind, "property");
+  assert.equal(js.run?.kind, "property");
+
+  const named = byName(await extract("function App() {}\nexport default App;\n", "javascript"));
+  assert.equal(named.App?.defaultExport, true);
+
+  const py = byName(await extract('@app.get("/")\ndef root():\n    pass\n\ndef plain():\n    pass\n', "python"));
+  assert.equal(py.root?.decorated, true);
+  assert.equal(py.plain?.decorated, false);
+});

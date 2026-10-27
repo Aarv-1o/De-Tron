@@ -2,16 +2,20 @@ import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { buildIndex } from "../index/repo.ts";
+import { deadCodeToJson, formatDeadCode, type DeadCode } from "../report/deadCode.ts";
 import { duplicatesToJson, formatDuplicates } from "../report/duplicates.ts";
+import { findDeadFunctions } from "../rules/codebase/deadFunctions.ts";
 import { findDuplicates } from "../rules/codebase/duplicates.ts";
+import { findUnusedFiles } from "../rules/codebase/unusedFiles.ts";
+import { findUnusedPackages } from "../rules/codebase/unusedPackages.ts";
 
 const HELP = `Detron: stops AI coding agents from making a mess of your codebase.
 
 Usage:
-  detron scan [path]    Find copied code in a repo (default: current folder)
+  detron scan [path]    Find copied and dead code in a repo (default: current folder)
 
 Options:
-  --all                 Also show hints (same structure, different values)
+  --all                 Also show hints (less certain findings)
   --json                Machine-readable output, for agents and scripts
   -h, --help            Show this help
 `;
@@ -35,14 +39,25 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
   const started = Date.now();
   const index = await buildIndex(root);
   const groups = findDuplicates(index.functions);
+  const dead: DeadCode = {
+    packages: await findUnusedPackages(index),
+    files: await findUnusedFiles(index),
+    functions: await findDeadFunctions(index),
+  };
 
   if (json) {
-    out(`${JSON.stringify({ root, files: index.files.length, functions: index.functions.length, filesWithSyntaxErrors: index.filesWithSyntaxErrors, duplicates: duplicatesToJson(groups) }, null, 2)}\n`);
+    const report = {
+      root, files: index.files.length, functions: index.functions.length,
+      filesWithSyntaxErrors: index.filesWithSyntaxErrors,
+      duplicates: duplicatesToJson(groups), deadCode: deadCodeToJson(dead),
+    };
+    out(`${JSON.stringify(report, null, 2)}\n`);
     return 0;
   }
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   out(`Detron scan: ${root}\n${index.files.length} files, ${index.functions.length} functions, ${seconds}s\n\n`);
   out(formatDuplicates(groups, all));
+  out(`\n${formatDeadCode(dead, all)}`);
   if (index.filesWithSyntaxErrors.length) {
     out(`\nNote: ${index.filesWithSyntaxErrors.length} file(s) have syntax Detron couldn't fully read, so results there may be incomplete:\n`);
     for (const f of index.filesWithSyntaxErrors) out(`  ${f}\n`);

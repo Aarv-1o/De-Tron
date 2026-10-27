@@ -12,7 +12,11 @@ const SKIP_DIRS = new Set([
   "__pycache__", ".venv", "venv", "env", ".mypy_cache", ".pytest_cache",
 ]);
 
-function isSource(path: string): boolean {
+// Repeated setup and unused helpers are normal in tests, so most checks skip them.
+const TEST_FILE = /(^|\/)(__tests__|tests?|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^/]*\.py$|_test\.py$/;
+export const isTestFile = (path: string) => TEST_FILE.test(path);
+
+export function isSource(path: string): boolean {
   // Minified bundles are generated, not written by anyone.
   return detectLanguage(path) !== undefined && !/\.min\.(js|mjs|cjs)$/i.test(path);
 }
@@ -43,8 +47,7 @@ async function walk(root: string, dir = root): Promise<string[]> {
   return found;
 }
 
-// Source files Detron can read, as sorted repo-relative paths with "/" separators.
-export async function listSourceFiles(root: string): Promise<string[]> {
-  const all = (await gitFiles(root)) ?? (await walk(root));
-  return all.filter(isSource).sort();
+// Every file in the repo (respecting .gitignore), as sorted repo-relative paths with "/" separators.
+export async function listRepoFiles(root: string): Promise<string[]> {
+  return ((await gitFiles(root)) ?? (await walk(root))).sort();
 }

@@ -6,7 +6,7 @@ import type { DuplicateGroup } from "../src/rules/codebase/duplicates.ts";
 
 const fn = (name: string, file: string, startLine: number): FunctionInfo => ({
   name, file, startLine, endLine: startLine + 9, language: "typescript", params: [],
-  className: undefined, exported: false, async: false, shape: ["internal"],
+  className: undefined, kind: "function", decorated: false, defaultExport: false, exported: false, async: false, shape: ["internal"],
 });
 
 const groups: DuplicateGroup[] = [

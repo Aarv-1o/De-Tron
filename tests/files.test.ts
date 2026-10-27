@@ -1,19 +1,10 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
-import { listSourceFiles } from "../src/index/files.ts";
+import { makeRepo } from "./helpers.ts";
+import { isSource, listRepoFiles } from "../src/index/files.ts";
 
-async function makeRepo(files: Record<string, string>): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "detron-"));
-  for (const [path, content] of Object.entries(files)) {
-    await mkdir(join(root, path, ".."), { recursive: true });
-    await writeFile(join(root, path), content);
-  }
-  return root;
-}
+const sourceFiles = async (root: string) => (await listRepoFiles(root)).filter(isSource);
 
 const FILES = {
   "src/app.ts": "",
@@ -27,12 +18,12 @@ const FILES = {
 
 test("outside git: walks the folder and skips junk folders", async () => {
   const root = await makeRepo(FILES);
-  assert.deepEqual(await listSourceFiles(root), ["server/main.py", "src/app.ts", "src/ui/Page.tsx"]);
+  assert.deepEqual(await sourceFiles(root), ["server/main.py", "src/app.ts", "src/ui/Page.tsx"]);
 });
 
 test("inside git: follows .gitignore, including untracked files", async () => {
   const root = await makeRepo({ ...FILES, ".gitignore": "dist/\nnode_modules/\ngenerated/\n", "generated/api.ts": "" });
   execFileSync("git", ["init", "-q"], { cwd: root });
   execFileSync("git", ["add", "src/app.ts"], { cwd: root });
-  assert.deepEqual(await listSourceFiles(root), ["server/main.py", "src/app.ts", "src/ui/Page.tsx"]);
+  assert.deepEqual(await sourceFiles(root), ["server/main.py", "src/app.ts", "src/ui/Page.tsx"]);
 });

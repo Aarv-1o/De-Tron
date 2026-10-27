@@ -1,7 +1,7 @@
+import { isTestFile } from "../../index/files.ts";
 import type { FunctionInfo } from "../../index/functions.ts";
 import { JSX_MARKER, LITERAL_PREFIX } from "../../index/shape.ts";
-
-export type Confidence = "sure" | "likely" | "maybe";
+import type { Confidence } from "../confidence.ts";
 
 export interface DuplicateGroup {
   kind: "exact" | "similar" | "cross-language";
@@ -10,8 +10,6 @@ export interface DuplicateGroup {
   sharedValues: string[]; // string values the copies have in common: the evidence
 }
 
-// Repeated setup in tests is usually deliberate, so tests are left out.
-const TEST_FILE = /(^|\/)(__tests__|tests?|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^/]*\.py$|_test\.py$/;
 
 const MIN_TOKENS = 40; // smaller bodies are too generic to call copies...
 const MIN_TOKENS_MANY_COPIES = 15; // ...unless the same small body shows up in 3+ files
@@ -78,7 +76,7 @@ class Clusters {
 }
 
 export function findDuplicates(all: FunctionInfo[]): DuplicateGroup[] {
-  const fns = all.filter((f) => !TEST_FILE.test(f.file));
+  const fns = all.filter((f) => !isTestFile(f.file));
   const groups: DuplicateGroup[] = [];
 
   // 1. Exact copies: same structure, same values, only names differ.
@@ -87,7 +85,9 @@ export function findDuplicates(all: FunctionInfo[]): DuplicateGroup[] {
   for (const copies of byShape.values()) {
     const files = new Set(copies.map((f) => f.file)).size;
     if (copies.length > 1 && (copies[0]!.shape.length >= MIN_TOKENS || files >= 3)) {
-      groups.push({ kind: "exact", confidence: "sure", functions: copies, sharedValues: [...values(copies[0]!)] });
+      // The code itself proves an exact copy; only wording is worth showing ("role" is not).
+      const wording = [...values(copies[0]!)].filter(distinctive);
+      groups.push({ kind: "exact", confidence: "sure", functions: copies, sharedValues: wording });
     }
   }
 
