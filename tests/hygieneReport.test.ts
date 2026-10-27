@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatHygiene } from "../src/report/hygiene.ts";
+import { formatLineFindings } from "../src/report/hygiene.ts";
 import type { LineFinding } from "../src/rules/line/types.ts";
 
 const finding = (rule: string, file: string, line: number, confidence: LineFinding["confidence"], message: string): LineFinding =>
   ({ rule, file, line, confidence, message });
 
 test("hygiene report: grouped by rule, one shared message, safe-to-fix marks, hints hidden", () => {
-  const text = formatHygiene([
+  const text = formatLineFindings("Code hygiene", [
     finding("catch-only-logs", "b.tsx", 9, "likely", "Error is only logged: the user never finds out it failed."),
     finding("catch-only-logs", "a.tsx", 3, "likely", "Error is only logged: the user never finds out it failed."),
     finding("unused-param", "c.js", 4, "sure", "extract: id is never used."),
@@ -20,5 +20,5 @@ test("hygiene report: grouped by rule, one shared message, safe-to-fix marks, hi
   assert.match(text, /d\.js:1 {2}run: 6 levels deep/);
   assert.match(text, /1 more hint hidden/);
   assert.doesNotMatch(text, /Long parameter lists/);
-  assert.match(formatHygiene([], false), /No code hygiene issues found/);
+  assert.match(formatLineFindings("Code hygiene", [], false), /No code hygiene issues found/);
 });

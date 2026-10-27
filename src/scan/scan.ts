@@ -13,7 +13,9 @@ import { findUnusedPackages } from "../rules/codebase/unusedPackages.ts";
 import { findCrossStack, type CrossStack } from "../rules/crossStack/check.ts";
 import { htmlCallsIn } from "../rules/crossStack/htmlCalls.ts";
 import type { FileApi } from "../rules/crossStack/types.ts";
+import { DATABASE_RULES, moneyInSchemaText, usesDatabase } from "../rules/database/index.ts";
 import { runLineRules, type LineFinding } from "../rules/line/index.ts";
+import { readTexts } from "../index/texts.ts";
 
 // Every check on one repo, with no printing: the CLI, and later the MCP server and the editor
 // extension, all start from this.
@@ -28,6 +30,8 @@ export interface ScanResult {
   deadFiles: Set<string>;
   crossStack: CrossStack;
   hygiene: LineFinding[]; // without findings in dead files: the fix there is deleting the file
+  database: LineFinding[]; // same, for the database checks
+  hasDatabase: boolean; // a database library or schema file was found
   history: History;
   hotspots: Hotspot[];
   seconds: number;
@@ -35,19 +39,19 @@ export interface ScanResult {
 
 export async function scanRepo(root: string): Promise<ScanResult> {
   const started = Date.now();
-  const hygiene: LineFinding[] = [];
+  const lineFindings: LineFinding[] = [];
   const apis = new Map<string, FileApi>();
   const sizes = new Map<string, FileSize>();
   const index = await buildIndex(root, {
     onFile: async (parsed, file) => {
       const imports = extractUsage(parsed).imports.map((i) => i.source);
-      hygiene.push(...(await runLineRules(parsed, file, imports)));
+      lineFindings.push(...(await runLineRules(parsed, file, imports)));
       apis.set(file, supportFor(parsed.language).extractApi(parsed.tree.rootNode, file));
       // The file as written: an Astro template's nesting is complexity too.
       sizes.set(file, indentComplexity(parsed.original ?? parsed.source, stringRows(parsed.tree.rootNode)));
     },
   });
-  hygiene.push(...findFunctionShapeIssues(index.functions));
+  lineFindings.push(...findFunctionShapeIssues(index.functions));
 
   const groups = findDuplicates(index.functions);
   const differences = new Map<DuplicateGroup, CopyDifferences>();
@@ -71,12 +75,19 @@ export async function scanRepo(root: string): Promise<ScanResult> {
     sizes.delete(file);
   }
 
+  // Prisma schemas and SQL files aren't parsed: their columns are read as text.
+  const schemas = await readTexts(root, index.allFiles.filter((f) => /\.(prisma|sql)$/i.test(f)));
+  for (const [file, text] of schemas) lineFindings.push(...moneyInSchemaText(file, text));
+  const live = lineFindings.filter((f) => !deadFiles.has(f.file));
+
   const imports = new Map([...index.usage].map(([file, u]) => [file, u.imports]));
   const crossStack = findCrossStack(apis, imports, await htmlCallsIn(root, index.allFiles));
   const history = await gitHistory(root);
   return {
     root, index, skipped: unsupportedCode(index.allFiles), groups, differences, dead, deadFiles, crossStack,
-    hygiene: hygiene.filter((f) => !deadFiles.has(f.file)),
+    hygiene: live.filter((f) => !DATABASE_RULES.has(f.rule)),
+    database: live.filter((f) => DATABASE_RULES.has(f.rule)),
+    hasDatabase: usesDatabase(imports.values(), index.allFiles),
     history, hotspots: history.ok ? findHotspots(history.changes, sizes) : [],
     seconds: (Date.now() - started) / 1000,
   };
