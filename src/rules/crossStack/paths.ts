@@ -42,28 +42,34 @@ export function parsePath(raw: string): ApiPath | undefined {
   const segments = url.split("/").filter(Boolean).map(segmentOf);
   if (unknownPrefix && !segments.some((s) => s !== PARAM)) return undefined; // nothing known to match on
   if (FILE_EXTENSION.test(segments.at(-1) ?? "")) return undefined;
-  return { segments, unknownPrefix, text: `${unknownPrefix ? "…" : ""}/${segments.map((s) => (s === PARAM ? ":param" : s)).join("/")}` };
+  const shown = url.split("/").filter(Boolean).join("/").replaceAll(HOLE, "…");
+  return { segments, unknownPrefix, text: `${unknownPrefix ? "…" : ""}/${shown}` };
 }
+
+export const hasParams = (path: ApiPath) => path.segments.some((s) => s === PARAM || s === REST);
 
 export function joinPaths(prefix: string, path: string): string {
   return `${prefix.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`.replace(/\/$/, "") || "/";
 }
 
-const same = (a: string, b: string) => a === b || a === PARAM || b === PARAM;
+// Strict: a call's `${id}` doesn't reach a route's literal "/export". Loose: it could.
+const fits = (strict: boolean) => (call: string, route: string) => call === route || route === PARAM || (!strict && call === PARAM);
 
-// Does a call to `call` reach `route`? Routes never have an unknown prefix: Detron only keeps
-// routes whose full path it worked out.
-export function reaches(call: ApiPath, route: ApiPath): boolean {
+// Does a call to `call` reach `route`? Either may have an unknown start (a base URL from
+// elsewhere, a router mounted where Detron can't see): then only the ends are compared.
+export function reaches(call: ApiPath, route: ApiPath, strict = false): boolean {
+  const same = fits(strict);
   const rest = route.segments.indexOf(REST);
   const fixed = rest === -1 ? route.segments : route.segments.slice(0, rest);
-  if (call.unknownPrefix) {
-    // Only the end of the call is known: line it up with the end of the route.
+  if (call.unknownPrefix || route.unknownPrefix) {
     if (rest !== -1) return true; // a catch-all could take it; we can't say it doesn't
-    const offset = fixed.length - call.segments.length;
-    return offset >= 0 && call.segments.every((s, i) => same(s, fixed[offset + i]!));
+    const [a, b] = [call.segments, fixed];
+    const known = call.unknownPrefix && route.unknownPrefix ? Math.min(a.length, b.length) : call.unknownPrefix ? a.length : b.length;
+    if (a.length < known || b.length < known) return false;
+    return a.slice(a.length - known).every((s, i) => same(s, b[b.length - known + i]!));
   }
   if (rest === -1 ? call.segments.length !== fixed.length : call.segments.length < fixed.length) return false;
-  return fixed.every((s, i) => same(s, call.segments[i]!));
+  return fixed.every((s, i) => same(call.segments[i]!, s));
 }
 
 // A route that only catches everything ("/{*splat}" serving the frontend) says nothing about the API.

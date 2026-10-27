@@ -19,6 +19,7 @@ test("parsePath: local hosts, queries and unknown prefixes", () => {
   const tail = path(`${HOLE}/usage`);
   assert.equal(tail.unknownPrefix, true);
   assert.equal(tail.text, "…/usage");
+  assert.equal(path(`/api/users/${HOLE}/avatar`).text, "/api/users/…/avatar");
 });
 
 test("parsePath: ignores what isn't this app's API", () => {
