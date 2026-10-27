@@ -51,8 +51,3 @@ async function walk(root: string, dir = root): Promise<string[]> {
 export async function listRepoFiles(root: string): Promise<string[]> {
   return ((await gitFiles(root)) ?? (await walk(root))).sort();
 }
-
-// Source files Detron can read.
-export async function listSourceFiles(root: string): Promise<string[]> {
-  return (await listRepoFiles(root)).filter(isSource);
-}
