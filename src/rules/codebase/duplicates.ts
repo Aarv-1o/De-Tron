@@ -87,7 +87,9 @@ export function findDuplicates(all: FunctionInfo[]): DuplicateGroup[] {
   for (const copies of byShape.values()) {
     const files = new Set(copies.map((f) => f.file)).size;
     if (copies.length > 1 && (copies[0]!.shape.length >= MIN_TOKENS || files >= 3)) {
-      groups.push({ kind: "exact", confidence: "sure", functions: copies, sharedValues: [...values(copies[0]!)] });
+      // The code itself proves an exact copy; only wording is worth showing ("role" is not).
+      const wording = [...values(copies[0]!)].filter(distinctive);
+      groups.push({ kind: "exact", confidence: "sure", functions: copies, sharedValues: wording });
     }
   }
 
