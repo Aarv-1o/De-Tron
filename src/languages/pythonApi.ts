@@ -2,6 +2,7 @@ import type { Node } from "web-tree-sitter";
 import { HOLE } from "../rules/crossStack/paths.ts";
 import { emptyApi, type FileApi } from "../rules/crossStack/types.ts";
 import { descendants } from "./nodes.ts";
+import { djangoRoutes } from "./pythonDjango.ts";
 
 // FastAPI and Flask routes, routers and how they're mounted, in one Python file.
 
@@ -16,6 +17,9 @@ function stringValue(node: Node | null | undefined): string | undefined {
     .map((part) => (part.type === "string_content" ? part.text : part.type === "interpolation" ? HOLE : ""))
     .join("");
 }
+
+// No prefix: "". A prefix from a setting (settings.API_V1_STR): HOLE, so only the rest is known.
+const prefixValue = (node: Node | undefined) => (node ? (stringValue(node) ?? HOLE) : "");
 
 const argsOf = (call: Node) => call.childForFieldName("arguments")?.namedChildren ?? [];
 
@@ -34,7 +38,7 @@ function findRouters(root: Node, api: FileApi): void {
     const callee = value.childForFieldName("function")?.text.split(".").at(-1);
     if (callee === "FastAPI" || callee === "Flask") api.routers.set(name.text, { prefix: "", isApp: true });
     else if (callee === "APIRouter" || callee === "Blueprint") {
-      const prefix = stringValue(keyword(value, callee === "APIRouter" ? "prefix" : "url_prefix")) ?? "";
+      const prefix = prefixValue(keyword(value, callee === "APIRouter" ? "prefix" : "url_prefix"));
       api.routers.set(name.text, { prefix, isApp: false });
     }
   }
@@ -71,7 +75,7 @@ function mountOf(call: Node, api: FileApi): void {
   if (!on || (kind !== "include_router" && kind !== "register_blueprint")) return;
   const target = argsOf(call)[0];
   if (target?.type !== "identifier" && target?.type !== "attribute") return;
-  const prefix = stringValue(keyword(call, kind === "include_router" ? "prefix" : "url_prefix")) ?? "";
+  const prefix = prefixValue(keyword(call, kind === "include_router" ? "prefix" : "url_prefix"));
   api.mounts.push({ prefix, on, target: target.text, line: call.startPosition.row + 1 });
 }
 
@@ -82,5 +86,6 @@ export function extractPythonApi(root: Node): FileApi {
     if (node.type === "decorated_definition") routesOf(node, api);
     else if (node.type === "call") mountOf(node, api);
   }
+  djangoRoutes(root, api);
   return api;
 }
