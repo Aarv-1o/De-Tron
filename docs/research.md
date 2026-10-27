@@ -231,3 +231,42 @@ uses (`{formatDate(x)}`, `<Card />`) are added after the last line so they count
   as the start of code.
 - Astro Paper: 54 files, clean, after fixing `typescript` being reported as an unused
   package (it's used by `astro check` and the editor, never imported).
+
+## Findings an agent can act on (Oct 2026)
+
+"slab: 6 parameters. Pass an object" left an agent to find the parameters and callers itself,
+and "Clean these first" for hotspots could send it off rewriting a working file. Every finding
+now has: what (with evidence: parameter names, every caller, every copy and how it differs),
+why it matters, fix steps, safe / ask first / warning, and how to check the fix. `--agent`
+prints them grouped by rule, so the guidance is said once (fewer tokens for the agent).
+Hotspots became a warning: test what you change first, keep cleanup in its own commit.
+
+## Database checks v1, from SQL Antipatterns (Oct 2026)
+
+Lessons from Karwin that decided what to build:
+- **Rounding Errors (ch. 10):** "Virtually any use of FLOAT is suspect", but floats are right
+  for scientific values. So only money-named fields count (price, amount, fee...), never
+  ratings, scores or coordinates, and not priceCents or taxRate.
+- **Index Shotgun (ch. 13):** "Know your data, know your queries, MENTOR your indexes". Index
+  advice needs measurements Detron doesn't have, so it never tells an agent to add an index.
+  That's how Index Shotgun happens.
+- **Naive Trees (ch. 3):** a parent pointer is fine for shallow trees ("Don't over-engineer").
+  Walking a tree one query per level is a hint, fixed with one recursive query
+  (WITH RECURSIVE, $graphLookup) before any schema change.
+- **Random Selection, Poor Man's Search Engine, Implicit Columns (ch. 16, 17, 19):** all have
+  legitimate uses (small tables, rare queries, ad hoc SQL), so they're hints. Except INSERT
+  without a column list, which breaks when the table changes.
+- Passwords and SQL injection (ch. 20, 21) belong to the security checks.
+
+Not in the book, but the most common database mistake in AI code: queries inside loops (N+1).
+
+| Repo | Found | Checked by hand |
+|---|---|---|
+| Escrows-AI (Mongoose) | 12 N+1, 4 tree walks, 2 money fields, 19 $regex searches | N+1: 11 real + 1 parallel (hint). Tree walks: real, shallow. Money: `budget` (whole dollars) and `cost` (credits) are borderline: right to be hints |
+| proshop (Mongoose) | 5 money fields, 1 $regex search | real: prices with 15% tax computed on them |
+| FastAPI template, Django and NestJS RealWorld, MERN repos | nothing | right |
+| AgentinFlow, Detron | "not checked": no database | right |
+
+False alarms found and fixed on the way: `TOKEN_RE.exec()` and `Object.create()` read as model
+queries; `totalUsed` read as money; a seed script inserting row by row; tests holding example
+SQL; and "no database issues" printed for repos with no database at all.

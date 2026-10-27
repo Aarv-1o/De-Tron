@@ -89,7 +89,8 @@ Optional later: bring-your-own API key, for scans with no agent running (cloned 
 tiny single-use helpers, assign-then-return.
 
 Status: all of the above are built and report through `detron scan`, plus the cross-stack
-check and hotspots. Not built yet: vague names, reuse hint.
+check, database checks and hotspots. Every finding comes with why, fix steps, safe or ask
+first, and how to check (`--agent`, `--json`). Not built yet: vague names, reuse hint.
 
 ## Safety rules
 
