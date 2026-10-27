@@ -88,6 +88,9 @@ Optional later: bring-your-own API key, for scans with no agent running (cloned 
 **Dropped after hand-check** (mostly false alarms): async without await,
 tiny single-use helpers, assign-then-return.
 
+Status: all of the above are built and report through `detron scan`. Vague names are
+not built yet.
+
 ## Safety rules
 
 - **Structure vs behavior.** Only structure-only fixes (no change in what the code does)

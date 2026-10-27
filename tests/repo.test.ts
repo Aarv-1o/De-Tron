@@ -18,3 +18,12 @@ test("buildIndex indexes a mixed JS + Python repo", async () => {
   // tree-sitter recovers what it can from broken files, so we flag them instead of skipping them.
   assert.deepEqual(index.filesWithSyntaxErrors, ["api/broken.py"]);
 });
+
+test("buildIndex hands each parsed file to onFile, before freeing it", async () => {
+  const root = await makeRepo({ "a.ts": "const a = 1;\n", "b.py": "b = 2\n", "notes.md": "# hi\n" });
+  const seen: string[] = [];
+  await buildIndex(root, { onFile: (parsed, file) => {
+    seen.push(`${file}:${parsed.tree.rootNode.type}`);
+  } });
+  assert.deepEqual(seen, ["a.ts:program", "b.py:module"]);
+});

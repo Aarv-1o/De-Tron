@@ -121,3 +121,23 @@ is clean, but Detron got that right by luck.
 
 Lesson for adding Astro/Vue/Svelte: their imports end in `.astro`/`.vue`/`.svelte`.
 A quick trial that ignored this produced 10 false "unused file" alarms.
+
+## Line rules v1 results (Oct 2026)
+
+| Rule | Escrows-AI | Travscape | Checked by hand |
+|---|---|---|---|
+| Errors only logged (browser) | 22 | 3 | real: the user never sees the failure |
+| Errors silently ignored | 16 | 3 (maybe: named Python errors) | 13 of Escrows' 16 are `catch { /* ignore */ }` |
+| Errors turned into default values | 7 (maybe) | 4 (maybe) | about half are correct fail-closed checks: hint only |
+| Commented-out code | 0 | 2 blocks + 1 line | all real, after requiring it to parse as code |
+| Unused parameters | 1 | 0 | real; LangGraph/Gradio false alarms gone |
+| Deep nesting (5+) | 3 | 4 | real (processEnrollment: 6 levels, CCN 81) |
+| Comments that repeat the code | 30 | 12 | ~9 of 12 real |
+
+What made the difference:
+- **Parse to confirm commented-out code.** "html=True enables serving index.html" looks
+  like code but doesn't parse.
+- **Who calls a function decides if its params can go.** A function passed as a value
+  (route handler, LangGraph node, Gradio callback) has a fixed signature.
+- **A reason in a comment counts; "/* ignore */" doesn't.**
+- **Browser vs server.** An error only logged in the browser is one the user never sees.

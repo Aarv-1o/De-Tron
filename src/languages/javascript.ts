@@ -2,8 +2,8 @@ import { posix } from "node:path";
 import type { Node } from "web-tree-sitter";
 import type { FunctionInfo } from "../index/functions.ts";
 import type { ImportInfo } from "../index/usage.ts";
-import { commonInfo, descendants, enclosingClass, unquote } from "./nodes.ts";
-import type { LanguageSupport } from "./types.ts";
+import { commonInfo, descendants, enclosingClass, valueReferences, unquote } from "./nodes.ts";
+import type { LanguageSupport, Syntax } from "./types.ts";
 
 const FUNCTION_TYPES = new Set([
   "function_declaration", "generator_function_declaration", "function_expression",
@@ -29,30 +29,28 @@ function paramsOf(node: Node): string[] {
     .map((p) => (p.childForFieldName("pattern") ?? p.childForFieldName("left") ?? p).text);
 }
 
-// Names exported via `export { a, b }`, `export default a`, `module.exports = { a }` or `exports.a = ...`.
+// CommonJS: `module.exports = { a, b: c }`, `module.exports = a` or `exports.a = ...`.
+function commonJsExports(assignment: Node): string[] {
+  const left = assignment.childForFieldName("left")?.text ?? "";
+  const right = assignment.childForFieldName("right");
+  if (left === "module.exports" && right?.type === "object") {
+    return right.namedChildren
+      .map((prop) => (prop.type === "shorthand_property_identifier" ? prop : prop.childForFieldName("key"))?.text)
+      .filter((key): key is string => !!key);
+  }
+  if (left === "module.exports" && right?.type === "identifier") return [right.text];
+  const named = /^(?:module\.)?exports\.(\w+)$/.exec(left)?.[1];
+  return named ? [named] : [];
+}
+
+// Names exported via `export { a, b }`, `export default a`, or CommonJS.
 function exportedNames(root: Node): Set<string> {
   const names = new Set<string>();
   for (const node of descendants(root)) {
-    if (node.type === "export_specifier") {
-      names.add(node.childForFieldName("name")?.text ?? node.text);
-    } else if (node.type === "export_statement") {
-      const value = node.childForFieldName("value");
-      if (value?.type === "identifier") names.add(value.text);
-    } else if (node.type === "assignment_expression") {
-      const left = node.childForFieldName("left")?.text ?? "";
-      const right = node.childForFieldName("right");
-      if (left === "module.exports" && right?.type === "object") {
-        for (const prop of right.namedChildren) {
-          const key = prop.type === "shorthand_property_identifier" ? prop : prop.childForFieldName("key");
-          if (key) names.add(key.text);
-        }
-      } else if (left === "module.exports" && right?.type === "identifier") {
-        names.add(right.text);
-      } else {
-        const m = /^(?:module\.)?exports\.(\w+)$/.exec(left);
-        if (m?.[1]) names.add(m[1]);
-      }
-    }
+    if (node.type === "export_specifier") names.add(node.childForFieldName("name")?.text ?? node.text);
+    const value = node.type === "export_statement" ? node.childForFieldName("value") : null;
+    if (value?.type === "identifier") names.add(value.text);
+    if (node.type === "assignment_expression") for (const name of commonJsExports(node)) names.add(name);
   }
   return names;
 }
@@ -74,6 +72,25 @@ function defaultExportName(root: Node): string | undefined {
   return undefined;
 }
 
+const FRONTEND_PATH = /(^|\/)(components|pages|views|static|public|client|frontend|web|ui)\//;
+const FRONTEND_IMPORT = /^(react|react-dom|vue|svelte|solid-js|preact)(\/|$)/;
+
+const syntax: Syntax = {
+  catchClause: "catch_clause",
+  catchBody: (clause) => clause.childForFieldName("body") ?? undefined,
+  catchVariable: (clause) => clause.childForFieldName("parameter")?.text,
+  catchType: () => undefined,
+  throwStatement: "throw_statement",
+  emptyStatement: undefined,
+  nesting: ["if_statement", "for_statement", "for_in_statement", "while_statement", "do_statement", "try_statement", "switch_statement"],
+  functionTypes: [...FUNCTION_TYPES],
+  callType: "call_expression",
+  logCall: /^(console|logger|log)\.\w+\(/,
+  commentText: (comment) => comment.replace(/^\/\/+|^\/\*+|\*+\/$/g, "").trim(),
+  looksLikeCode:
+    /^(const |let |var |if ?\(|for ?\(|return\b|import |export |await |console\.|\}|[\w.[\]'"]+\(.*\);?$|[\w.[\]]+ ?= ?[^=].*;$|<\/?[A-Z]\w*)/,
+};
+
 export const javascript: LanguageSupport = {
   family: "js",
   label: "JS/TS",
@@ -92,6 +109,7 @@ export const javascript: LanguageSupport = {
     const exported = exportedNames(root);
     const defaultName = defaultExportName(root);
     const found: FunctionInfo[] = [];
+    const valueRefs = valueReferences(root, syntax);
     for (const node of descendants(root)) {
       if (!FUNCTION_TYPES.has(node.type)) continue;
       const name = nameOf(node);
@@ -100,8 +118,7 @@ export const javascript: LanguageSupport = {
       const exportNode = exportAncestor(node);
       const property = node.parent?.type === "pair" || (node.type === "method_definition" && !className);
       found.push({
-        ...commonInfo(node, name, file, id),
-        params: paramsOf(node),
+        ...commonInfo(node, { name, file, language: id, syntax, params: paramsOf(node), valueRefs }),
         className,
         kind: className ? "method" : property ? "property" : "function",
         decorated: false,
@@ -142,5 +159,9 @@ export const javascript: LanguageSupport = {
   },
 
   entryKind: () => undefined,
+  runsInBrowser: (file, imports) =>
+    /\.[jt]sx$/.test(file) || FRONTEND_PATH.test(file) || imports.some((i) => FRONTEND_IMPORT.test(i)),
   unusedExportReason: "Exported, but nothing uses it.",
+
+  syntax,
 };

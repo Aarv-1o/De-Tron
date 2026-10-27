@@ -1,4 +1,5 @@
 import type { FunctionInfo } from "../index/functions.ts";
+import type { CopyDifferences, LineChange } from "../rules/codebase/differences.ts";
 import type { DuplicateGroup } from "../rules/codebase/duplicates.ts";
 import type { Confidence } from "../rules/confidence.ts";
 
@@ -36,7 +37,46 @@ function quote(value: string): string {
   return short.includes('"') ? `'${short}'` : `"${short}"`;
 }
 
-export function formatDuplicates(groups: DuplicateGroup[], showHints: boolean): string {
+const MAX_CHANGES_SHOWN = 3;
+const trimmed = (text: string) => {
+  const t = text.trim();
+  return t.length > 70 ? `${t.slice(0, 70)}…` : t;
+};
+
+const valuesIn = (text: string) => (text.match(/"[^"]*"|'[^']*'|`[^`]*`|\b\d+(\.\d+)?\b/g) ?? []).join(" ");
+
+// Most telling first: a line whose values differ ("Just now" vs "just now", 45 vs 1),
+// then other rewritten lines, then lines only one side has.
+const rank = (c: LineChange) => {
+  if (!c.base || !c.copy) return 2;
+  return valuesIn(c.base.text) !== valuesIn(c.copy.text) ? 0 : 1;
+};
+
+function differencesSection(diff: CopyDifferences): string[] {
+  const lines = [`     What differs from ${diff.base.file}:${diff.base.startLine} ${diff.base.name}:`];
+  for (const { fn, changes } of diff.copies) {
+    lines.push(`       ${fn.file}:${fn.startLine} ${fn.name}`);
+    const shown = [...changes].sort((a, b) => rank(a) - rank(b)).slice(0, MAX_CHANGES_SHOWN);
+    for (const c of shown) {
+      if (c.base && c.copy) {
+        lines.push(`         ${String(c.copy.line).padStart(5)}: ${trimmed(c.copy.text)}`);
+        lines.push(`           instead of: ${trimmed(c.base.text)}`);
+      } else if (c.copy) {
+        lines.push(`         ${String(c.copy.line).padStart(5)}: ${trimmed(c.copy.text)}   (only here)`);
+      } else if (c.base) {
+        lines.push(`         missing: ${trimmed(c.base.text)}`);
+      }
+    }
+    if (changes.length > shown.length) lines.push(`         …and ${changes.length - shown.length} more`);
+  }
+  return lines;
+}
+
+export function formatDuplicates(
+  groups: DuplicateGroup[],
+  showHints: boolean,
+  differences: Map<DuplicateGroup, CopyDifferences> = new Map(),
+): string {
   const lines: string[] = [];
   // A drifted group often contains an exact group too: point back to it instead of hiding either.
   const sureNumber = new Map<FunctionInfo, number>();
@@ -56,18 +96,29 @@ export function formatDuplicates(groups: DuplicateGroup[], showHints: boolean): 
         lines.push(`     ${location(fn)}${seeAlso}`);
       }
       if (group.sharedValues.length) lines.push(`     Same wording: ${group.sharedValues.slice(0, 3).map(quote).join(", ")}`);
+      if (group.kind === "exact" && new Set(group.functions.map((f) => f.name)).size > 1) {
+        lines.push("     Identical apart from names.");
+      }
+      const diff = differences.get(group);
+      if (diff) lines.push(...differencesSection(diff));
       lines.push(`     → ${ADVICE[group.kind][level] ?? ""}`, "");
     });
   }
   return lines.length ? lines.join("\n") : "No copies found.\n";
 }
 
+const where = ({ name, file, startLine, endLine, language }: FunctionInfo) => ({ name, file, startLine, endLine, language });
+
 // For agents and scripts: everything except the body shapes, which are internal.
-export function duplicatesToJson(groups: DuplicateGroup[]) {
-  return groups.map((g) => ({
-    kind: g.kind,
-    confidence: g.confidence,
-    sharedValues: g.sharedValues,
-    functions: g.functions.map(({ name, file, startLine, endLine, language }) => ({ name, file, startLine, endLine, language })),
-  }));
+export function duplicatesToJson(groups: DuplicateGroup[], differences: Map<DuplicateGroup, CopyDifferences> = new Map()) {
+  return groups.map((g) => {
+    const diff = differences.get(g);
+    return {
+      kind: g.kind,
+      confidence: g.confidence,
+      sharedValues: g.sharedValues,
+      functions: g.functions.map(where),
+      ...(diff && { differences: { base: where(diff.base), copies: diff.copies.map((c) => ({ ...where(c.fn), changes: c.changes })) } }),
+    };
+  });
 }

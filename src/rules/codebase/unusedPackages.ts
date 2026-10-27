@@ -30,7 +30,7 @@ const readJson = async <T>(path: string): Promise<T | undefined> => {
   try {
     return JSON.parse(await readFile(path, "utf8")) as T;
   } catch {
-    return undefined;
+    return undefined; // not installed, or not JSON: treated as unknown
   }
 };
 

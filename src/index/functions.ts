@@ -15,6 +15,9 @@ export interface FunctionInfo {
   defaultExport: boolean;
   exported: boolean; // JS/TS: exported from the module. Python: public top-level name.
   async: boolean;
+  nesting: number; // deepest if/for/while/try nesting inside it
+  unusedParams: string[]; // simple params its body never mentions
+  passedAsValue: boolean; // its name is passed around in its file (a callback, a route handler), not only called
   shape: string[]; // see shapeOf: used to spot copies
 }
 

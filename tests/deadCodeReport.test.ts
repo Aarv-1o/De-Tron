@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { FunctionInfo } from "../src/index/functions.ts";
+import { fakeFunction } from "./helpers.ts";
 import { deadCodeToJson, formatDeadCode, type DeadCode } from "../src/report/deadCode.ts";
 
-const fn = (name: string, file: string): FunctionInfo => ({
-  name, file, startLine: 3, endLine: 9, language: "javascript", params: [], className: undefined,
-  kind: "function", decorated: false, defaultExport: false, exported: true, async: false, shape: [],
-});
+const fn = (name: string, file: string) => fakeFunction({ name, file, exported: true });
 
 const found: DeadCode = {
   packages: [

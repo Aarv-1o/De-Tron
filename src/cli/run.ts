@@ -3,17 +3,23 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { unsupportedCode } from "../index/files.ts";
 import { buildIndex } from "../index/repo.ts";
+import { extractUsage } from "../index/usage.ts";
 import { deadCodeToJson, formatDeadCode, type DeadCode } from "../report/deadCode.ts";
 import { duplicatesToJson, formatDuplicates } from "../report/duplicates.ts";
+import { formatHygiene } from "../report/hygiene.ts";
 import { findDeadFunctions } from "../rules/codebase/deadFunctions.ts";
-import { findDuplicates } from "../rules/codebase/duplicates.ts";
+import { findDifferences, type CopyDifferences } from "../rules/codebase/differences.ts";
+import { findDuplicates, type DuplicateGroup } from "../rules/codebase/duplicates.ts";
+import { findFunctionShapeIssues } from "../rules/codebase/functionShape.ts";
 import { findUnusedFiles } from "../rules/codebase/unusedFiles.ts";
 import { findUnusedPackages } from "../rules/codebase/unusedPackages.ts";
+import { runLineRules, type LineFinding } from "../rules/line/index.ts";
 
 const HELP = `Detron: stops AI coding agents from making a mess of your codebase.
 
 Usage:
-  detron scan [path]    Find copied and dead code in a repo (default: current folder)
+  detron scan [path]    Find copied code, dead code and code hygiene issues in a repo
+                        (default: current folder)
 
 Options:
   --all                 Also show hints (less certain findings)
@@ -27,7 +33,7 @@ async function isFolder(path: string): Promise<boolean> {
   try {
     return (await stat(path)).isDirectory();
   } catch {
-    return false;
+    return false; // stat fails when the path doesn't exist: that's the answer, not an error
   }
 }
 
@@ -38,8 +44,20 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
     return 2;
   }
   const started = Date.now();
-  const index = await buildIndex(root);
+  const hygiene: LineFinding[] = [];
+  const index = await buildIndex(root, {
+    onFile: async (parsed, file) => {
+      const imports = extractUsage(parsed).imports.map((i) => i.source);
+      hygiene.push(...(await runLineRules(parsed, file, imports)));
+    },
+  });
+  hygiene.push(...findFunctionShapeIssues(index.functions));
   const groups = findDuplicates(index.functions);
+  const differences = new Map<DuplicateGroup, CopyDifferences>();
+  for (const group of groups) {
+    const diff = await findDifferences(root, group);
+    if (diff) differences.set(group, diff);
+  }
   const dead: DeadCode = {
     packages: await findUnusedPackages(index),
     files: await findUnusedFiles(index),
@@ -48,12 +66,16 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
 
   const skipped = unsupportedCode(index.allFiles);
 
+  // Issues inside a file that's dead as a whole are noise: the fix is deleting the file.
+  const deadFiles = new Set(dead.files.map((f) => f.file));
+  const liveHygiene = hygiene.filter((f) => !deadFiles.has(f.file));
+
   if (json) {
     const report = {
       root, files: index.files.length, functions: index.functions.length,
       skippedFiles: Object.fromEntries(skipped),
       filesWithSyntaxErrors: index.filesWithSyntaxErrors,
-      duplicates: duplicatesToJson(groups), deadCode: deadCodeToJson(dead),
+      duplicates: duplicatesToJson(groups, differences), deadCode: deadCodeToJson(dead), hygiene: liveHygiene,
     };
     out(`${JSON.stringify(report, null, 2)}\n`);
     return 0;
@@ -66,8 +88,9 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
     out(`Not checked: ${list} file${total > 1 ? "s" : ""} (not supported yet). Results only cover the files above.\n`);
   }
   out("\n");
-  out(formatDuplicates(groups, all));
+  out(formatDuplicates(groups, all, differences));
   out(`\n${formatDeadCode(dead, all)}`);
+  out(`\n${formatHygiene(liveHygiene, all)}`);
   if (index.filesWithSyntaxErrors.length) {
     out(`\nNote: ${index.filesWithSyntaxErrors.length} file(s) have syntax Detron couldn't fully read, so results there may be incomplete:\n`);
     for (const f of index.filesWithSyntaxErrors) out(`  ${f}\n`);

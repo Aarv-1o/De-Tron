@@ -1,8 +1,8 @@
 import type { Node } from "web-tree-sitter";
 import type { FunctionInfo } from "../index/functions.ts";
 import type { ImportInfo } from "../index/usage.ts";
-import { commonInfo, descendants, enclosingClass } from "./nodes.ts";
-import type { LanguageSupport } from "./types.ts";
+import { commonInfo, descendants, enclosingClass, valueReferences } from "./nodes.ts";
+import type { LanguageSupport, Syntax } from "./types.ts";
 
 function paramsOf(node: Node): string[] {
   const params = node.childForFieldName("parameters");
@@ -20,6 +20,21 @@ const MAIN_BLOCK = /__name__\s*==\s*["']__main__["']/;
 const TOP_LEVEL_CALL = /^[A-Za-z_][\w.]*\(/m; // e.g. demo.launch() or main()
 const WEB_APP = /^\w+\s*=\s*(FastAPI|Flask|Starlette|Quart|Sanic)\(/m;
 
+const syntax: Syntax = {
+  catchClause: "except_clause",
+  catchBody: (clause) => clause.namedChildren.find((c) => c.type === "block"),
+  catchVariable: (clause) => /\bas\s+(\w+)\s*:/.exec(clause.text.split("\n")[0] ?? "")?.[1],
+  catchType: (clause) => /^except\s+(.+?)(\s+as\s+\w+)?\s*:/.exec(clause.text.split("\n")[0] ?? "")?.[1],
+  throwStatement: "raise_statement",
+  emptyStatement: "pass_statement",
+  nesting: ["if_statement", "for_statement", "while_statement", "try_statement", "with_statement", "match_statement"],
+  functionTypes: ["function_definition", "lambda"],
+  callType: "call",
+  logCall: /^(print|logging\.\w+|logger\.\w+|log\.\w+|traceback\.print_exc)\(/,
+  commentText: (comment) => comment.replace(/^#+/, "").trim(),
+  looksLikeCode: /^(import |from \w[\w.]* import |def |return\b|print\(|if .+:$|for .+:$|[\w.[\]'"]+\(.*\)$|[\w.[\]]+ ?= ?[^=].*$)/,
+};
+
 export const python: LanguageSupport = {
   family: "python",
   label: "Python",
@@ -27,6 +42,7 @@ export const python: LanguageSupport = {
 
   extractFunctions(root, file, id) {
     const found: FunctionInfo[] = [];
+    const valueRefs = valueReferences(root, syntax);
     for (const node of descendants(root)) {
       if (node.type !== "function_definition") continue;
       const name = node.childForFieldName("name")?.text;
@@ -36,8 +52,7 @@ export const python: LanguageSupport = {
       const decorated = node.parent?.type === "decorated_definition";
       const holder = decorated ? node.parent?.parent : node.parent;
       found.push({
-        ...commonInfo(node, name, file, id),
-        params: paramsOf(node),
+        ...commonInfo(node, { name, file, language: id, syntax, params: paramsOf(node), valueRefs }),
         className,
         kind: className ? "method" : "function",
         decorated,
@@ -83,4 +98,7 @@ export const python: LanguageSupport = {
     return MAIN_BLOCK.test(text) || TOP_LEVEL_CALL.test(text) ? "script" : undefined;
   },
   unusedExportReason: "Nothing uses it.",
+  runsInBrowser: () => false,
+
+  syntax,
 };
