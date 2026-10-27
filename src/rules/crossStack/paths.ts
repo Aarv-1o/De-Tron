@@ -1,0 +1,70 @@
+// URL paths from both sides of the stack, in one form that can be compared:
+// "/users/:id", "/users/{id}", "/users/<int:id>", "/users/[id]" and `/users/${id}` are all
+// ["users", "*"].
+
+// Stands in for a part of a URL Detron can't work out: `${userId}`, or a constant from elsewhere.
+export const HOLE = "\u0000";
+const PARAM = "*";
+const REST = "**"; // matches any number of segments: Express "{*splat}", Next "[...slug]"
+
+export interface ApiPath {
+  segments: string[];
+  // The URL starts with a value Detron couldn't read (`${API}/usage`): only the end is known.
+  unknownPrefix: boolean;
+  text: string; // for people
+}
+
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?$/;
+const FILE_EXTENSION = /\.[a-z0-9]{2,5}$/i; // /data.json, /logo.png: static files, not API routes
+
+function segmentOf(part: string): string {
+  if (/^(\{\*\w*\}|\*\w*|\[\.\.\.\w+\]|\[\[\.\.\.\w+\]\]|<path:\w+>)$/.test(part)) return REST;
+  if (part.includes(HOLE) || /^(:\w+\??|\{\w+(:[^}]*)?\}|<(\w+:)?\w+>|\[\w+\])$/.test(part)) return PARAM;
+  return part;
+}
+
+// A URL as written in a call or a route. Returns undefined for anything that isn't a path
+// on this app's own server: other hosts, static files, relative links, unreadable values.
+export function parsePath(raw: string): ApiPath | undefined {
+  let url = raw.trim();
+  const host = /^(?:https?:|wss?:)?\/\/([^/]*)/i.exec(url);
+  if (host) {
+    if (!LOCAL_HOST.test(host[1]!) && !host[1]!.includes(HOLE)) return undefined; // someone else's API
+    url = url.slice(host[0].length) || "/";
+  }
+  let unknownPrefix = false;
+  if (url.startsWith(HOLE)) {
+    url = url.replace(/^\u0000+/, "");
+    unknownPrefix = true;
+  }
+  url = url.split(/[?#]/)[0]!;
+  if (!url.startsWith("/")) return undefined;
+  const segments = url.split("/").filter(Boolean).map(segmentOf);
+  if (unknownPrefix && !segments.some((s) => s !== PARAM)) return undefined; // nothing known to match on
+  if (FILE_EXTENSION.test(segments.at(-1) ?? "")) return undefined;
+  return { segments, unknownPrefix, text: `${unknownPrefix ? "…" : ""}/${segments.map((s) => (s === PARAM ? ":param" : s)).join("/")}` };
+}
+
+export function joinPaths(prefix: string, path: string): string {
+  return `${prefix.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`.replace(/\/$/, "") || "/";
+}
+
+const same = (a: string, b: string) => a === b || a === PARAM || b === PARAM;
+
+// Does a call to `call` reach `route`? Routes never have an unknown prefix: Detron only keeps
+// routes whose full path it worked out.
+export function reaches(call: ApiPath, route: ApiPath): boolean {
+  const rest = route.segments.indexOf(REST);
+  const fixed = rest === -1 ? route.segments : route.segments.slice(0, rest);
+  if (call.unknownPrefix) {
+    // Only the end of the call is known: line it up with the end of the route.
+    if (rest !== -1) return true; // a catch-all could take it; we can't say it doesn't
+    const offset = fixed.length - call.segments.length;
+    return offset >= 0 && call.segments.every((s, i) => same(s, fixed[offset + i]!));
+  }
+  if (rest === -1 ? call.segments.length !== fixed.length : call.segments.length < fixed.length) return false;
+  return fixed.every((s, i) => same(s, call.segments[i]!));
+}
+
+// A route that only catches everything ("/{*splat}" serving the frontend) says nothing about the API.
+export const isCatchAll = (route: ApiPath) => route.segments[0] === REST;
