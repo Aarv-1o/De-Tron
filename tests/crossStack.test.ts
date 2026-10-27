@@ -12,7 +12,8 @@ async function crossStack(files: Record<string, string>): Promise<string[]> {
   const root = await makeRepo(files);
   const apis = new Map<string, FileApi>();
   const index = await buildIndex(root, { onFile: (p, f) => void apis.set(f, supportFor(p.language).extractApi(p.tree.rootNode, f)) });
-  const result = findCrossStack(apis, await htmlCallsIn(root, index.allFiles));
+  const imports = new Map([...index.usage].map(([file, u]) => [file, u.imports]));
+  const result = findCrossStack(apis, imports, await htmlCallsIn(root, index.allFiles));
   return [
     ...result.missing.map((m) => `${m.kind} ${m.confidence} ${m.method} ${m.path.text} ${m.file}:${m.line}${m.closest ? ` ~ ${m.closest.path.text}` : ""}`),
     ...result.unused.map((u) => `unused ${u.confidence} ${u.route.method} ${u.route.path.text} ${u.route.file}:${u.route.line}`),
@@ -106,7 +107,11 @@ export const one = (id: string) => apiFetch(\`/api/users/\${id}\`);
 export const avatar = (id: string, path: string) => fetch(\`/api/users/\${id}/avatar\${path}\`);
 export const send = (endpoint: string) => fetch(\`\${BASE}\${endpoint}\`);
 export const upload = (id: string) => { const x = new XMLHttpRequest(); x.open("PUT", \`/api/users/\${id}/avatar\`); x.open("DELETE", \`/api/users/\${id}/avatar\`); };
+export const list = () => fetch("/api/users");
 export const exp = () => axios.post("/api/users/export");
+`,
+    "src/Avatar.tsx": `export const Avatar = ({ id }) => <img src={"/api/users/" + id} alt="" />;
+export const Nav = () => <a href="/dashboard">Home</a>;
 `,
   }), []);
   assert.deepEqual(await crossStack({ "src/a.ts": `fetch("/api/anything");` }), []);

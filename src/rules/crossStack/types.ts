@@ -19,12 +19,6 @@ export interface Mount {
   line: number;
 }
 
-// A local name that comes from another file: `import { router as chatRouter } from "./chat"`.
-export interface Binding {
-  source: string; // "./chat", "app.api.chat"
-  name: string; // the name in that file: "router", "default"
-}
-
 export interface ApiCall {
   method: string | undefined; // undefined: set by a value Detron can't read
   url: string; // with HOLE where a value couldn't be worked out
@@ -37,8 +31,10 @@ export interface FileApi {
   // Routers and apps created in this file, with their own prefix: APIRouter(prefix="/api") -> "/api".
   // `isApp` for the top level (express(), FastAPI(), Flask()): it isn't mounted anywhere.
   routers: Map<string, { prefix: string; isApp: boolean }>;
-  bindings: Map<string, Binding>;
   calls: ApiCall[];
+  // Other URLs in frontend code: <video src>, <a href>, url={...}. They show a GET route is
+  // used, but aren't calls: "/dashboard" may be a frontend page.
+  mentions: string[];
 }
 
-export const emptyApi = (): FileApi => ({ routes: [], mounts: [], routers: new Map(), bindings: new Map(), calls: [] });
+export const emptyApi = (): FileApi => ({ routes: [], mounts: [], routers: new Map(), calls: [], mentions: [] });

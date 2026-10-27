@@ -29,34 +29,6 @@ function findRouters(root: Node, api: FileApi): void {
   }
 }
 
-function findBindings(root: Node, api: FileApi): void {
-  for (const node of descendants(root)) {
-    if (node.type === "import_statement") {
-      const source = node.childForFieldName("source");
-      if (!source) continue;
-      for (const part of descendants(node)) {
-        if (part.type === "import_clause") {
-          const local = part.namedChildren.find((c) => c.type === "identifier");
-          if (local) api.bindings.set(local.text, { source: unquote(source), name: "default" });
-        } else if (part.type === "import_specifier") {
-          const name = part.childForFieldName("name")?.text ?? part.text;
-          api.bindings.set(part.childForFieldName("alias")?.text ?? name, { source: unquote(source), name });
-        }
-      }
-    } else if (node.type === "variable_declarator") {
-      // const x = require("./x"), const { a } = require("./x")
-      const value = node.childForFieldName("value");
-      const arg = value?.type === "call_expression" && value.childForFieldName("function")?.text === "require" ? args(value)[0] : undefined;
-      if (arg?.type !== "string") continue;
-      const pattern = node.childForFieldName("name");
-      if (pattern?.type === "identifier") api.bindings.set(pattern.text, { source: unquote(arg), name: "default" });
-      for (const p of pattern?.type === "object_pattern" ? pattern.namedChildren : []) {
-        if (p.type === "shorthand_property_identifier_pattern") api.bindings.set(p.text, { source: unquote(arg), name: p.text });
-      }
-    }
-  }
-}
-
 // What a mount points at: `authRouter`, `createAuthRouter(User)` or `require("./auth")`.
 function mountTarget(node: Node): string | undefined {
   if (node.type === "identifier") return node.text;
@@ -94,12 +66,13 @@ function methodOption(options: Node | undefined): string | undefined {
   return value?.type === "string" ? unquote(value).toUpperCase() : undefined;
 }
 
-function addCall(api: FileApi, urlNode: Node | undefined, method: string | undefined, line: number, wrapper = false): void {
+// `wrapper`: called through your own helper, which may add a base URL we can't see.
+function addCall(api: FileApi, urlNode: Node | undefined, call: { method: string | undefined; line: number; wrapper?: boolean }): void {
+  const { method, line, wrapper = false } = call;
   if (!urlNode) return;
   for (const value of stringValues(urlNode) ?? []) {
     const url = value.split(/[?#]/)[0]!;
     if (/[^/]\u0000$/.test(url)) continue; // ends in an unknown piece: `/api/items${suffix}`
-    // A wrapper may add a base URL we can't see, so only the end of the path is known.
     if (wrapper && !url.startsWith("/")) continue;
     api.calls.push({ method, url: wrapper ? HOLE + url : url, line });
   }
@@ -110,10 +83,10 @@ function visitCall(node: Node, api: FileApi): void {
   const [first, second] = args(node);
   const line = node.startPosition.row + 1;
   if (fn?.type === "identifier") {
-    if (fn.text === "fetch") return addCall(api, first, methodOption(second), line);
-    if (fn.text === "axios") return addCall(api, first, first?.type === "object" ? undefined : methodOption(second), line);
+    if (fn.text === "fetch") return addCall(api, first, { method: methodOption(second), line });
+    if (fn.text === "axios") return addCall(api, first, { method: first?.type === "object" ? undefined : methodOption(second), line });
     // A wrapper named like fetch passes the options on: authFetch(url, { method: "PUT" }).
-    if (WRAPPER_NAME.test(fn.text)) return addCall(api, first, /fetch/i.test(fn.text) ? methodOption(second) : undefined, line, true);
+    if (WRAPPER_NAME.test(fn.text)) return addCall(api, first, { method: /fetch/i.test(fn.text) ? methodOption(second) : undefined, line, wrapper: true });
     return;
   }
   if (fn?.type !== "member_expression") return;
@@ -128,13 +101,13 @@ function visitCall(node: Node, api: FileApi): void {
     if (target) api.mounts.push({ prefix, on: object.text, target, line });
     return;
   }
-  // xhr.open("POST", url)
+  // The old XMLHttpRequest way: open() takes the method, then the URL.
   if (prop === "open" && first?.type === "string" && METHOD_NAMES.has(unquote(first).toLowerCase())) {
-    return addCall(api, second, unquote(first).toUpperCase(), line);
+    return addCall(api, second, { method: unquote(first).toUpperCase(), line });
   }
   if (!METHOD_NAMES.has(prop)) return;
   if (object.type === "identifier" && CLIENT_NAME.test(object.text) && !api.routers.has(object.text)) {
-    return addCall(api, first, prop === "all" ? undefined : prop.toUpperCase(), line, object.text !== "axios");
+    return addCall(api, first, { method: prop === "all" ? undefined : prop.toUpperCase(), line, wrapper: object.text !== "axios" });
   }
   const route = isRouter ? routeOf(object, node) : undefined;
   if (route && args(node).length > (object.type === "identifier" ? 1 : 0)) {
@@ -168,14 +141,23 @@ function fileRoutes(root: Node, file: string, api: FileApi): void {
 export function extractJsApi(root: Node, file: string): FileApi {
   const api = emptyApi();
   findRouters(root, api);
-  findBindings(root, api);
   fileRoutes(root, file, api);
   for (const node of descendants(root)) {
     if (node.type === "call_expression") visitCall(node, api);
     else if (node.type === "new_expression" && node.childForFieldName("constructor")?.text === "EventSource") {
       const url = node.childForFieldName("arguments")?.namedChildren[0];
-      addCall(api, url, "GET", node.startPosition.row + 1);
+      addCall(api, url, { method: "GET", line: node.startPosition.row + 1 });
     }
   }
+  if (!api.routes.length && !api.mounts.length) findMentions(root, api);
   return api;
+}
+
+const STRING_TYPES = new Set(["string", "template_string", "binary_expression"]);
+
+function findMentions(root: Node, api: FileApi): void {
+  for (const node of descendants(root)) {
+    if (!STRING_TYPES.has(node.type) || STRING_TYPES.has(node.parent?.type ?? "") || node.parent?.type === "template_substitution") continue;
+    for (const value of stringValues(node) ?? []) if (value.startsWith("/")) api.mentions.push(value);
+  }
 }

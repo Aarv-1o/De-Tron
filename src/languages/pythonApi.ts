@@ -40,27 +40,6 @@ function findRouters(root: Node, api: FileApi): void {
   }
 }
 
-function findBindings(root: Node, api: FileApi): void {
-  for (const node of descendants(root)) {
-    if (node.type === "import_from_statement") {
-      const module = node.childForFieldName("module_name")?.text;
-      if (!module) continue;
-      for (const n of node.childrenForFieldName("name")) {
-        const name = (n.type === "aliased_import" ? n.childForFieldName("name") : n)?.text;
-        const local = n.type === "aliased_import" ? n.childForFieldName("alias")?.text : name;
-        if (name && local) api.bindings.set(local, { source: module, name });
-      }
-    } else if (node.type === "import_statement") {
-      for (const n of node.namedChildren) {
-        if (n.type !== "aliased_import") continue; // `import a.b` binds `a`: not a router
-        const alias = n.childForFieldName("alias")?.text;
-        const name = n.childForFieldName("name")?.text;
-        if (alias && name) api.bindings.set(alias, { source: name, name: "*" });
-      }
-    }
-  }
-}
-
 function routesOf(decorated: Node, api: FileApi): void {
   const handler = decorated.childForFieldName("definition")?.childForFieldName("name")?.text;
   for (const decorator of decorated.namedChildren.filter((d) => d.type === "decorator")) {
@@ -83,7 +62,7 @@ function routesOf(decorated: Node, api: FileApi): void {
   }
 }
 
-// app.include_router(chat_router, prefix="/v1"), app.register_blueprint(bp, url_prefix="/x")
+// Mounting a router: include_router (FastAPI, with prefix=) or register_blueprint (Flask, url_prefix=).
 function mountOf(call: Node, api: FileApi): void {
   const fn = call.childForFieldName("function");
   if (fn?.type !== "attribute") return;
@@ -99,7 +78,6 @@ function mountOf(call: Node, api: FileApi): void {
 export function extractPythonApi(root: Node): FileApi {
   const api = emptyApi();
   findRouters(root, api);
-  findBindings(root, api);
   for (const node of descendants(root)) {
     if (node.type === "decorated_definition") routesOf(node, api);
     else if (node.type === "call") mountOf(node, api);

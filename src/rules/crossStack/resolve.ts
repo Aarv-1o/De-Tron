@@ -1,5 +1,6 @@
 import { posix } from "node:path";
 import { HOLE, joinPaths, parsePath, type ApiPath } from "./paths.ts";
+import type { ImportInfo } from "../../index/usage.ts";
 import type { FileApi } from "./types.ts";
 
 // Joins every file's routes and mounts into full paths: a route "/signup" on a router mounted
@@ -47,7 +48,13 @@ const keyOf = (file: string, name: string): Key => `${file}#${name}`;
 
 // The routers a mount points at: a router in this file, or an imported one (or a factory
 // that makes one: then every router in that file).
-function mountTargets(file: string, target: string, apis: Map<string, FileApi>, files: Set<string>): Key[] {
+interface Repo {
+  apis: Map<string, FileApi>;
+  imports: Map<string, ImportInfo[]>;
+  files: Set<string>;
+}
+
+function mountTargets(file: string, target: string, { apis, imports, files }: Repo): Key[] {
   const api = apis.get(file)!;
   const required = /^require:(.*)$/.exec(target)?.[1];
   const [local, attribute] = target.split(".");
@@ -56,8 +63,9 @@ function mountTargets(file: string, target: string, apis: Map<string, FileApi>, 
   if (required) source = required;
   else if (api.routers.has(target)) return [keyOf(file, target)];
   else {
-    const binding = api.bindings.get(local!);
-    if (!binding) return [];
+    const from = imports.get(file)?.find((i) => local! in i.bound);
+    if (!from) return [];
+    const binding = { source: from.source, name: from.bound[local!]! };
     if (attribute) {
       // chat.router, after `from app.api import chat` or `import app.api.chat as chat`
       source = binding.name === "*" ? binding.source : `${binding.source}.${binding.name}`;
@@ -71,12 +79,12 @@ function mountTargets(file: string, target: string, apis: Map<string, FileApi>, 
   return [...other.routers].filter(([, r]) => !r.isApp).map(([n]) => keyOf(into, n));
 }
 
-export function fullRoutes(apis: Map<string, FileApi>): FullRoute[] {
+export function fullRoutes(apis: Map<string, FileApi>, imports: Map<string, ImportInfo[]>): FullRoute[] {
   const files = new Set(apis.keys());
   const mountedAt = new Map<Key, { on: Key; prefix: string }[]>();
   for (const [file, api] of apis) {
     for (const mount of api.mounts) {
-      for (const target of mountTargets(file, mount.target, apis, files)) {
+      for (const target of mountTargets(file, mount.target, { apis, imports, files })) {
         const list = mountedAt.get(target) ?? [];
         list.push({ on: keyOf(file, mount.on), prefix: mount.prefix });
         mountedAt.set(target, list);

@@ -1,6 +1,7 @@
 import type { Confidence } from "../confidence.ts";
 import { hasParams, isCatchAll, parsePath, reaches, type ApiPath } from "./paths.ts";
 import { fullRoutes, type FullRoute } from "./resolve.ts";
+import type { ImportInfo } from "../../index/usage.ts";
 import type { ApiCall, FileApi } from "./types.ts";
 
 // Frontend and backend drift apart: the frontend calls a route that was renamed or never
@@ -48,7 +49,7 @@ function closestRoute(path: ApiPath, routes: FullRoute[]): FullRoute | undefined
 // The routes a call reaches. A literal segment beats a parameter: `${id}` only stands in for
 // "/export" when no route takes a parameter there.
 function routesFor(path: ApiPath, routes: FullRoute[]): FullRoute[] {
-  const strict = routes.filter((r) => reaches(path, r.path, true));
+  const strict = routes.filter((r) => reaches(path, r.path, "strict"));
   return strict.length ? strict : routes.filter((r) => reaches(path, r.path));
 }
 
@@ -64,8 +65,11 @@ function checkCall(call: ApiCall & { file: string }, hits: FullRoute[], path: Ap
   return { kind: "missing-route", confidence: sameNamespace ? "likely" : "maybe", ...base, ...(closest ? { closest } : {}) };
 }
 
-export function findCrossStack(apis: Map<string, FileApi>, extraCalls: (ApiCall & { file: string })[] = []): CrossStack {
-  const routes = fullRoutes(apis).filter((r) => !isCatchAll(r.path));
+// `imports`: each file's imports, to follow routers mounted from other files.
+export function findCrossStack(
+  apis: Map<string, FileApi>, imports: Map<string, ImportInfo[]>, extraCalls: (ApiCall & { file: string })[] = [],
+): CrossStack {
+  const routes = fullRoutes(apis, imports).filter((r) => !isCatchAll(r.path));
   const calls = [...[...apis].flatMap(([file, api]) => api.calls.map((c) => ({ ...c, file }))), ...extraCalls]
     .map((call) => ({ call, path: parsePath(call.url) }))
     .filter((c): c is { call: ApiCall & { file: string }; path: ApiPath } => !!c.path);
@@ -77,7 +81,15 @@ export function findCrossStack(apis: Map<string, FileApi>, extraCalls: (ApiCall 
   // A page a form posts back to (GET /login) is opened by a link, not a call: any call to the same
   // fixed path counts.
   const page = (r: FullRoute) => r.method === "GET" && !hasParams(r.path);
-  const uses = (r: FullRoute) => reached.some(({ call, hits }) => hits.includes(r) && (methodFits(call.method, r.method) || page(r)));
+  const mentioned = new Set(
+    [...apis.values()].flatMap((api) => api.mentions.flatMap((m) => {
+      const path = parsePath(m);
+      return path ? routes.filter((r) => reaches(path, r.path, "exact")) : [];
+    })),
+  );
+  const uses = (r: FullRoute) =>
+    reached.some(({ call, hits }) => hits.includes(r) && (methodFits(call.method, r.method) || page(r))) ||
+    ((r.method === "GET" || r.method === "ALL") && mentioned.has(r));
   const unused = routes
     .filter((r) => !r.path.unknownPrefix && r.path.segments.length && !CALLED_FROM_OUTSIDE.test(r.path.text))
     .filter((r) => !uses(r))

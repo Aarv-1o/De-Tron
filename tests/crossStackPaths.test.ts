@@ -14,6 +14,7 @@ test("parsePath: every framework's parameter style is the same", () => {
 
 test("parsePath: local hosts, queries and unknown prefixes", () => {
   assert.deepEqual(path("http://127.0.0.1:8000/chat").segments, ["chat"]);
+  assert.deepEqual(path("http://172.24.147.103:1337/auth/signIn").segments, ["auth", "signIn"]);
   assert.deepEqual(path("/api/news/travel?count=9").segments, ["api", "news", "travel"]);
   assert.deepEqual(path("/api/items/").segments, ["api", "items"]);
   const tail = path(`${HOLE}/usage`);
@@ -23,7 +24,7 @@ test("parsePath: local hosts, queries and unknown prefixes", () => {
 });
 
 test("parsePath: ignores what isn't this app's API", () => {
-  for (const raw of ["https://api.openai.com/v1/chat", "/logo.png", "/data.json", "chat", "#top", HOLE, `${HOLE}/${HOLE}`]) {
+  for (const raw of ["https://api.openai.com/v1/chat", "http://172.32.0.1/x", "/logo.png", "/data.json", "chat", "#top", HOLE, `${HOLE}/${HOLE}`]) {
     assert.equal(parsePath(raw), undefined, raw);
   }
 });

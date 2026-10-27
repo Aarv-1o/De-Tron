@@ -72,16 +72,18 @@ export const python: LanguageSupport = {
         // import a.b, c as d
         for (const child of node.namedChildren) {
           const name = child.type === "aliased_import" ? child.childForFieldName("name") : child;
-          if (name) found.push({ source: name.text, names: [], line });
+          // `import a.b as c` binds c to the module; plain `import a.b` binds only `a`.
+          const alias = child.type === "aliased_import" ? child.childForFieldName("alias")?.text : name?.text;
+          if (name) found.push({ source: name.text, names: [], line, bound: alias && !alias.includes(".") ? { [alias]: "*" } : {} });
         }
       } else if (node.type === "import_from_statement") {
         // from .x import a, b as c
         const module = node.childForFieldName("module_name");
         if (!module) continue;
-        const names = node.childrenForFieldName("name").map((n) =>
-          (n.type === "aliased_import" ? n.childForFieldName("name") ?? n : n).text,
-        );
-        found.push({ source: module.text, names, line });
+        const parts = node.childrenForFieldName("name");
+        const names = parts.map((n) => (n.type === "aliased_import" ? n.childForFieldName("name") ?? n : n).text);
+        const bound = Object.fromEntries(parts.map((n, i) => [(n.type === "aliased_import" ? n.childForFieldName("alias")?.text : undefined) ?? names[i]!, names[i]!]));
+        found.push({ source: module.text, names, line, bound });
       }
     }
     return found;

@@ -14,7 +14,8 @@ export interface ApiPath {
   text: string; // for people
 }
 
-const LOCAL_HOST = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?$/;
+// This machine, or one on the local network (a dev server on 192.168.x.x): the app's own backend.
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2})(:\d+)?$/;
 const FILE_EXTENSION = /\.[a-z0-9]{2,5}$/i; // /data.json, /logo.png: static files, not API routes
 
 function segmentOf(part: string): string {
@@ -52,13 +53,16 @@ export function joinPaths(prefix: string, path: string): string {
   return `${prefix.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`.replace(/\/$/, "") || "/";
 }
 
-// Strict: a call's `${id}` doesn't reach a route's literal "/export". Loose: it could.
-const fits = (strict: boolean) => (call: string, route: string) => call === route || route === PARAM || (!strict && call === PARAM);
+// How sure a match must be. loose: a call's `${id}` could be the route's literal "/export".
+// strict: it can't. exact: and a route's ":id" only takes a call's `${id}`, not "stream".
+export type Match = "loose" | "strict" | "exact";
+const fits = (mode: Match) => (call: string, route: string) =>
+  call === route || (route === PARAM && (mode !== "exact" || call === PARAM)) || (mode === "loose" && call === PARAM);
 
 // Does a call to `call` reach `route`? Either may have an unknown start (a base URL from
 // elsewhere, a router mounted where Detron can't see): then only the ends are compared.
-export function reaches(call: ApiPath, route: ApiPath, strict = false): boolean {
-  const same = fits(strict);
+export function reaches(call: ApiPath, route: ApiPath, mode: Match = "loose"): boolean {
+  const same = fits(mode);
   const rest = route.segments.indexOf(REST);
   const fixed = rest === -1 ? route.segments : route.segments.slice(0, rest);
   if (call.unknownPrefix || route.unknownPrefix) {
