@@ -56,7 +56,10 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
   const differences = new Map<DuplicateGroup, CopyDifferences>();
   for (const group of groups) {
     const diff = await findDifferences(root, group);
-    if (diff) differences.set(group, diff);
+    if (!diff) continue;
+    differences.set(group, diff);
+    // Similar structure and shared wording, but most lines differ: a hint, not a copy.
+    if (diff.mostlyDifferent) group.confidence = "maybe";
   }
   const dead: DeadCode = {
     packages: await findUnusedPackages(index),
@@ -88,7 +91,7 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
     out(`Not checked: ${list} file${total > 1 ? "s" : ""} (not supported yet). Results only cover the files above.\n`);
   }
   out("\n");
-  out(formatDuplicates(groups, all, differences));
+  out(formatDuplicates(groups, all, differences, deadFiles));
   out(`\n${formatDeadCode(dead, all)}`);
   out(`\n${formatHygiene(liveHygiene, all)}`);
   if (index.filesWithSyntaxErrors.length) {

@@ -1,4 +1,5 @@
 import type { LineFinding } from "../rules/line/types.ts";
+import { hiddenNote, nothingFound } from "./common.ts";
 
 // In the order they're shown: things that hide failures first.
 const TITLES: Record<string, string> = {
@@ -37,6 +38,7 @@ export function formatHygiene(findings: LineFinding[], showHints: boolean): stri
     (a, b) => Object.keys(TITLES).indexOf(a) - Object.keys(TITLES).indexOf(b),
   );
   const lines = rules.flatMap((rule) => section(rule, shown.filter((f) => f.rule === rule)));
-  if (hidden) lines.push(`  ${hidden} more hints hidden. Run with --all to see them.`, "");
-  return lines.length ? `Code hygiene\n\n${lines.join("\n")}` : "No code hygiene issues found.\n";
+  if (!lines.length) return nothingFound("code hygiene issues", hidden);
+  if (hidden) lines.push(`  ${hiddenNote(hidden)}`, "");
+  return `Code hygiene\n\n${lines.join("\n")}`;
 }
