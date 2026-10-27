@@ -193,3 +193,41 @@ prompt text alone, and dropped out once strings were skipped.
 
 The ranking is relative, so every repo has a #1. It says where to start, not that a file
 is bad. Under 10 commits, it's skipped.
+
+## More frameworks, on a public test set (Oct 2026)
+
+So the rules don't only fit our own repos, each framework is checked on public repos:
+RealWorld (one API spec, many implementations), framework examples and templates.
+Two "full-stack" test repos join the React RealWorld frontend with a backend written to the
+same spec, so any mismatch is either real or a Detron bug.
+
+| Repo | Calls / routes | Found | Checked by hand |
+|---|---|---|---|
+| RealWorld React + NestJS | 22 / 21 | 2 routes nothing calls | real (`DELETE /api/users/:slug`, `GET /api`) |
+| RealWorld React + Django/DRF | 22 / 12 | nothing | right |
+| FastAPI full-stack template (generated client) | 23 / 23 | nothing | right |
+| Koa examples | 25 / 5 | 1 hint | the app handles it in middleware: right to be a hint |
+| Hono, Fastify, NestJS, Django alone; Ignite (React Native) | | not checked: no frontend or no backend | right |
+
+Bugs this found in Detron:
+- Paths without a leading slash (NestJS "api", Django "articles/") were dropped.
+- Koa chains (`router.get("/a").post("/b")`) all got the first path.
+- `prefix=settings.API_V1_STR` counted as no prefix. Unknown prefixes now stay unknown.
+- `include("app.urls")` picked the DRF router instead of `urlpatterns`.
+- supertest calls in `test.js` were reported as broken calls. Tests now never count as
+  broken calls, and a file named `test.js` counts as a test.
+- `…/uppercase` "matched" `GET /post/:id` only through the parameter. A wrong-method
+  report now needs a real word in common.
+
+## Astro (Oct 2026)
+
+No Astro grammar is installed, so an .astro file is read as TypeScript: frontmatter and JS
+`<script>` blocks as written, the template blanked out line for line. Names the template
+uses (`{formatDate(x)}`, `<Card />`) are added after the last line so they count as uses.
+
+- AgentinFlow: 19 of 19 code files read (was 3 of 19). Clean, matching the earlier hand check.
+  Two adapter bugs found on it first: an apostrophe in a template comment ("form's") was read
+  as a string start and hid `bySide(...)`, and a self-closing JSON-LD `<script />` was read
+  as the start of code.
+- Astro Paper: 54 files, clean, after fixing `typescript` being reported as an unused
+  package (it's used by `astro check` and the editor, never imported).

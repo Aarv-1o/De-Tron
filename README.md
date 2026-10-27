@@ -25,13 +25,15 @@ It finds:
 - **Copies:** exact and drifted copies of functions (with what differs), including the same logic in JS and Python
 - **Dead code:** unused packages (with sizes), unused files, functions nothing calls
 - **Frontend and backend:** calls to API routes that don't exist (and the route it likely meant),
-  calls with the wrong method, routes nothing calls. Express, Next.js, FastAPI and Flask
+  calls with the wrong method, routes nothing calls. Backends: Express, Koa, Hono, Fastify,
+  NestJS, Next.js, FastAPI, Flask, Django/DRF. Frontends: fetch, axios (with base URLs),
+  apisauce (React Native), superagent, generated clients, Vite's proxy
 - **Hotspots:** complex files that change often (from git history), so you know where to
   clean first. Needs a git clone, not a downloaded zip
 - **Code hygiene:** errors that are ignored or only logged, commented-out code, comments that
   repeat the code, unused parameters, deep nesting
 
-Supports JavaScript, TypeScript (incl. JSX/TSX) and Python.
+Supports JavaScript, TypeScript (incl. JSX/TSX), Python and Astro.
 
 - What V1 will do: [SPEC.md](SPEC.md)
 - Rules for anyone (human or agent) working on this repo: [AGENTS.md](AGENTS.md)
