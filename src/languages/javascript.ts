@@ -143,4 +143,17 @@ export const javascript: LanguageSupport = {
 
   entryKind: () => undefined,
   unusedExportReason: "Exported, but nothing uses it.",
+
+  syntax: {
+    catchClause: "catch_clause",
+    catchBody: (clause) => clause.childForFieldName("body") ?? undefined,
+    catchVariable: (clause) => clause.childForFieldName("parameter")?.text,
+    throwStatement: "throw_statement",
+    emptyStatement: undefined,
+    nesting: ["if_statement", "for_statement", "for_in_statement", "while_statement", "do_statement", "try_statement", "switch_statement"],
+    logCall: /^(console|logger|log)\.\w+\(/,
+    commentText: (comment) => comment.replace(/^\/\/+|^\/\*+|\*+\/$/g, "").trim(),
+    looksLikeCode:
+      /^(const |let |var |if ?\(|for ?\(|return\b|import |export |await |console\.|\}|[\w.[\]'"]+\(.*\);?$|[\w.[\]]+ ?= ?[^=].*;$|<\/?[A-Z]\w*)/,
+  },
 };

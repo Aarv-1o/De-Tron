@@ -17,4 +17,18 @@ export interface LanguageSupport {
   // Files that run on their own: "app" (a web server: never unused) or "script" (maybe a leftover).
   entryKind(text: string): "app" | "script" | undefined;
   unusedExportReason: string; // what "exported but unused" means in this language
+  syntax: Syntax;
+}
+
+// The words line rules need, so the rules themselves work for any language.
+export interface Syntax {
+  catchClause: string; // "catch_clause", "except_clause"
+  catchBody(clause: Node): Node | undefined;
+  catchVariable(clause: Node): string | undefined; // the `e` in catch (e) / except X as e
+  throwStatement: string; // "throw_statement", "raise_statement"
+  emptyStatement: string | undefined; // Python's "pass"
+  nesting: string[]; // statements that add a level of nesting
+  logCall: RegExp; // a statement that only logs: console.error(...), print(...)
+  commentText(comment: string): string; // the words of a comment, without // or #
+  looksLikeCode: RegExp; // a comment that is really commented-out code
 }

@@ -83,4 +83,16 @@ export const python: LanguageSupport = {
     return MAIN_BLOCK.test(text) || TOP_LEVEL_CALL.test(text) ? "script" : undefined;
   },
   unusedExportReason: "Nothing uses it.",
+
+  syntax: {
+    catchClause: "except_clause",
+    catchBody: (clause) => clause.namedChildren.find((c) => c.type === "block"),
+    catchVariable: (clause) => /\bas\s+(\w+)\s*:/.exec(clause.text.split("\n")[0] ?? "")?.[1],
+    throwStatement: "raise_statement",
+    emptyStatement: "pass_statement",
+    nesting: ["if_statement", "for_statement", "while_statement", "try_statement", "with_statement", "match_statement"],
+    logCall: /^(print|logging\.\w+|logger\.\w+|log\.\w+|traceback\.print_exc)\(/,
+    commentText: (comment) => comment.replace(/^#+/, "").trim(),
+    looksLikeCode: /^(import |from \w[\w.]* import |def |return\b|print\(|if .+:$|for .+:$|[\w.[\]'"]+\(.*\)$|[\w.[\]]+ ?= ?[^=].*$)/,
+  },
 };
