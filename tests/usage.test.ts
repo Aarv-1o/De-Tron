@@ -49,3 +49,12 @@ test("counts how often each name appears", async () => {
   assert.equal(names.get("a"), 1);
   assert.equal(names.get("b"), 3);
 });
+
+test("export lists don't count as using a name", async () => {
+  const es = (await usage("function a() {}\nfunction b() { a(); }\nexport { a, b };\n", "javascript")).names;
+  assert.equal(es.get("a"), 2, "definition + call, not the export list");
+  assert.equal(es.get("b"), 1);
+  const cjs = (await usage("function a() {}\nfunction b() {}\nmodule.exports = { a, b: b, c: () => a() };\nexports.d = b;\n", "javascript")).names;
+  assert.equal(cjs.get("a"), 2, "definition + the call inside c");
+  assert.equal(cjs.get("b"), 1);
+});
