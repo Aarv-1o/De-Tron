@@ -49,8 +49,10 @@ export function parsePath(raw: string): ApiPath | undefined {
 
 export const hasParams = (path: ApiPath) => path.segments.some((s) => s === PARAM || s === REST);
 
+// Always one leading slash: NestJS and Django write "api" and "articles/" without one.
 export function joinPaths(prefix: string, path: string): string {
-  return `${prefix.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`.replace(/\/$/, "") || "/";
+  const parts = [prefix, path].flatMap((p) => p.split("/")).filter(Boolean);
+  return `/${parts.join("/")}`;
 }
 
 // How sure a match must be. loose: a call's `${id}` could be the route's literal "/export".

@@ -44,4 +44,5 @@ test("joinPaths: prefixes and slashes", () => {
   assert.equal(joinPaths("/api/", "/chat"), "/api/chat");
   assert.equal(joinPaths("/api", "/"), "/api");
   assert.equal(joinPaths("", "/"), "/");
+  assert.equal(joinPaths("api", "articles/"), "/api/articles");
 });

@@ -46,45 +46,57 @@ function resolvePython(from: string, source: string, files: Set<string>): string
 type Key = string; // "file#variable"
 const keyOf = (file: string, name: string): Key => `${file}#${name}`;
 
-// The routers a mount points at: a router in this file, or an imported one (or a factory
-// that makes one: then every router in that file).
-interface Repo {
+export interface Repo {
   apis: Map<string, FileApi>;
   imports: Map<string, ImportInfo[]>;
   files: Set<string>;
 }
 
-function mountTargets(file: string, target: string, { apis, imports, files }: Repo): Key[] {
-  const api = apis.get(file)!;
-  const required = /^require:(.*)$/.exec(target)?.[1];
+// Where a name used in `file` comes from: `chatRouter` imported from "./chat" as `router`
+// is { file: "routes/chat.ts", name: "router" }. `chat.router` (a module's attribute) works too.
+export function definedIn(file: string, target: string, { imports, files }: Repo): { file: string; name: string | undefined } | undefined {
+  // "require:./auth" (a module), or "require:app.urls:urlpatterns" (a name in it)
+  const [, required, requiredName] = /^require:([^:]*)(?::(\w+))?$/.exec(target) ?? [];
   const [local, attribute] = target.split(".");
-  let source: string | undefined;
+  let source: string;
   let name: string | undefined;
-  if (required) source = required;
-  else if (api.routers.has(target)) return [keyOf(file, target)];
+  if (required) [source, name] = [required, requiredName];
   else {
     const from = imports.get(file)?.find((i) => local! in i.bound);
-    if (!from) return [];
-    const binding = { source: from.source, name: from.bound[local!]! };
+    if (!from) return undefined;
+    const bound = from.bound[local!]!;
     if (attribute) {
       // chat.router, after `from app.api import chat` or `import app.api.chat as chat`
-      source = binding.name === "*" ? binding.source : `${binding.source}.${binding.name}`;
+      source = bound === "*" ? from.source : `${from.source}.${bound}`;
       name = attribute;
-    } else ({ source, name } = binding);
+    } else [source, name] = [from.source, bound];
   }
-  const into = resolveModule(file, source!, files);
-  const other = into && apis.get(into);
-  if (!other) return [];
-  if (name && other.routers.has(name)) return [keyOf(into, name)];
-  return [...other.routers].filter(([, r]) => !r.isApp).map(([n]) => keyOf(into, n));
+  const into = resolveModule(file, source, files);
+  return into ? { file: into, name } : undefined;
 }
 
-export function fullRoutes(apis: Map<string, FileApi>, imports: Map<string, ImportInfo[]>): FullRoute[] {
-  const files = new Set(apis.keys());
+// The routers a mount points at: a router in this file, or an imported one (or a factory
+// that makes one, or a plugin that's handed one: then the routers in that file).
+function mountTargets(file: string, target: string, repo: Repo): Key[] {
+  if (repo.apis.get(file)!.routers.has(target)) return [keyOf(file, target)];
+  const from = definedIn(file, target, repo);
+  const other = from && repo.apis.get(from.file);
+  if (!other) return [];
+  if (from.name && other.routers.has(from.name)) return [keyOf(from.file, from.name)];
+  const routers = [...other.routers];
+  const pick = routers.some(([, r]) => !r.isApp) ? routers.filter(([, r]) => !r.isApp) : routers;
+  // A Fastify plugin declares routes on the instance it's given: `fastify.get(...)`.
+  const names = pick.length ? pick.map(([n]) => n) : [...new Set(other.routes.map((r) => r.router))];
+  return names.map((n) => keyOf(from.file, n));
+}
+
+export function fullRoutes(repo: Repo): FullRoute[] {
+  const { apis } = repo;
+  const globalPrefix = [...apis.values()].find((a) => a.globalPrefix !== undefined)?.globalPrefix ?? "";
   const mountedAt = new Map<Key, { on: Key; prefix: string }[]>();
   for (const [file, api] of apis) {
     for (const mount of api.mounts) {
-      for (const target of mountTargets(file, mount.target, { apis, imports, files })) {
+      for (const target of mountTargets(file, mount.target, repo)) {
         const list = mountedAt.get(target) ?? [];
         list.push({ on: keyOf(file, mount.on), prefix: mount.prefix });
         mountedAt.set(target, list);
@@ -97,7 +109,7 @@ export function fullRoutes(apis: Map<string, FileApi>, imports: Map<string, Impo
     seen.add(key);
     const [file, name] = [key.slice(0, key.lastIndexOf("#")), key.slice(key.lastIndexOf("#") + 1)];
     const router = apis.get(file)?.routers.get(name);
-    const own = router?.prefix ?? "";
+    const own = router?.global ? joinPaths(globalPrefix, router.prefix) : (router?.prefix ?? "");
     const parents = (mountedAt.get(key) ?? []).flatMap((m) =>
       (prefixes(m.on, new Set(seen)) ?? []).map((p) => joinPaths(joinPaths(p, m.prefix), own)),
     );
@@ -109,7 +121,8 @@ export function fullRoutes(apis: Map<string, FileApi>, imports: Map<string, Impo
   for (const [file, api] of apis) {
     for (const route of api.routes) {
       const found = prefixes(keyOf(file, route.router));
-      const raws = found ? found.map((p) => joinPaths(p, route.path)) : [HOLE + route.path];
+      // A prefix with an unknown part (a setting): only what comes after it is known.
+      const raws = (found ?? [HOLE]).map((p) => (p.includes(HOLE) ? HOLE + joinPaths(p.split(HOLE).at(-1)!, route.path) : joinPaths(p, route.path)));
       for (const raw of raws) {
         const path = parsePath(raw);
         if (path) routes.push({ method: route.method, path, file, line: route.line, ...(route.handler ? { handler: route.handler } : {}) });

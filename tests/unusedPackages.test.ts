@@ -57,3 +57,11 @@ test("does not flag packages used in other ways", async () => {
   });
   assert.deepEqual(await findUnusedPackages(await buildIndex(root)), []);
 });
+
+test("typescript is used wherever there's TypeScript, even with no tsc script", async () => {
+  const pkg = JSON.stringify({ devDependencies: { typescript: "5.9.3" } });
+  const withTs = await buildIndex(await makeRepo({ "package.json": pkg, "tsconfig.json": "{}", "src/a.astro": "---\n---\n" }));
+  assert.deepEqual(await findUnusedPackages(withTs), []);
+  const plainJs = await buildIndex(await makeRepo({ "package.json": pkg, "src/a.js": "export const a = 1;\n" }));
+  assert.deepEqual((await findUnusedPackages(plainJs)).map((p) => p.name), ["typescript"]);
+});

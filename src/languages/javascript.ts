@@ -184,9 +184,10 @@ export const javascript: LanguageSupport = {
     return found;
   },
 
-  // "./util.js" -> util (TS ESM imports .ts files as .js), "./auth.service" keeps its dot.
+  // "./util.js" -> util (TS ESM imports .ts files as .js), "./Card.astro" -> Card,
+  // "./auth.service" keeps its dot.
   importedModules(imp) {
-    const last = posix.basename(imp.source.replace(/\/+$/, "")).replace(/\.[cm]?[jt]sx?$/, "");
+    const last = posix.basename(imp.source.replace(/\/+$/, "")).replace(/\.([cm]?[jt]sx?|astro|vue|svelte)$/, "");
     return last ? [last] : [];
   },
 

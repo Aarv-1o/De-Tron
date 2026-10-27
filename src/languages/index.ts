@@ -1,4 +1,5 @@
 import { extname } from "node:path";
+import { astro } from "./astro.ts";
 import { javascript } from "./javascript.ts";
 import { python } from "./python.ts";
 import type { LanguageId, LanguageSupport } from "./types.ts";
@@ -6,7 +7,7 @@ import type { LanguageId, LanguageSupport } from "./types.ts";
 export type { LanguageId, LanguageSupport } from "./types.ts";
 
 // To add a language: write its LanguageSupport and add it here.
-const LANGUAGES: LanguageSupport[] = [javascript, python];
+const LANGUAGES: LanguageSupport[] = [javascript, python, astro];
 
 const byExtension = new Map(
   LANGUAGES.flatMap((lang) => Object.entries(lang.grammars).map(([ext, grammar]) => [ext, { lang, ...grammar }] as const)),

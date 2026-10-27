@@ -43,7 +43,8 @@ export async function scanRepo(root: string): Promise<ScanResult> {
       const imports = extractUsage(parsed).imports.map((i) => i.source);
       hygiene.push(...(await runLineRules(parsed, file, imports)));
       apis.set(file, supportFor(parsed.language).extractApi(parsed.tree.rootNode, file));
-      sizes.set(file, indentComplexity(parsed.source, stringRows(parsed.tree.rootNode)));
+      // The file as written: an Astro template's nesting is complexity too.
+      sizes.set(file, indentComplexity(parsed.original ?? parsed.source, stringRows(parsed.tree.rootNode)));
     },
   });
   hygiene.push(...findFunctionShapeIssues(index.functions));

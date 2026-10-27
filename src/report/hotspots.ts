@@ -1,14 +1,17 @@
 import type { History, Hotspot } from "../rules/codebase/hotspots.ts";
 
 const SHOWN = 5;
+// A small file with nothing wrong isn't worth cleaning first, however often it changes.
+const MIN_LINES = 150;
 const SHOWN_ALL = 10;
 const num = (n: number) => n.toLocaleString("en-US");
 
 // `findings`: how many other Detron findings each file has, so "clean here first" has a starting point.
 export function formatHotspots(history: History, hotspots: Hotspot[], findings: Map<string, number>, showAll: boolean): string {
   if (!history.ok) return `Hotspots: not checked (${history.reason}).\n`;
-  if (!hotspots.length) return "No hotspots found (no file changed more than once).\n";
-  const shown = hotspots.slice(0, showAll ? SHOWN_ALL : SHOWN);
+  const worth = hotspots.filter((h) => h.lines >= MIN_LINES || findings.has(h.file));
+  if (!worth.length) return "No hotspots found (the files that change most are small and have no findings).\n";
+  const shown = worth.slice(0, showAll ? SHOWN_ALL : SHOWN);
   const cells = shown.map((h) => ({
     file: h.file,
     changes: `${h.changes} changes`,
@@ -19,7 +22,7 @@ export function formatHotspots(history: History, hotspots: Hotspot[], findings: 
   const lines = cells.map((c, i) =>
     `  ${`${i + 1}.`.padEnd(String(cells.length).length + 1)} ${c.file.padEnd(w("file"))}  ${c.changes.padStart(w("changes"))}  ${c.lines.padStart(w("lines"))}  ${c.found}`.trimEnd(),
   );
-  const more = hotspots.length > shown.length ? [`  ${hotspots.length - shown.length} more with --all.`] : [];
+  const more = !showAll && worth.length > shown.length ? [`  ${worth.length - shown.length} more with --all.`] : [];
   return [
     `Hotspots: complex files that change often (from ${history.commits} commits)`,
     "",

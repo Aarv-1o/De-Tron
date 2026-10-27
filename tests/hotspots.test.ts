@@ -62,10 +62,12 @@ test("git history: counts changes per file, also when scanning a folder inside t
 test("hotspots report: ranked, with findings per file; or why it wasn't checked", () => {
   const hotspots = findHotspots(
     new Map([["src/Inbox.tsx", 12], ["src/util.ts", 3]]),
-    new Map([["src/Inbox.tsx", { lines: 2149, complexity: 14000 }], ["src/util.ts", { lines: 80, complexity: 90 }]]),
+    new Map([["src/Inbox.tsx", { lines: 2149, complexity: 14000 }], ["src/util.ts", { lines: 180, complexity: 90 }]]),
   );
   const text = formatHotspots({ ok: true, commits: 47, changes: new Map() }, hotspots, new Map([["src/Inbox.tsx", 19]]), false);
   assert.match(text, /^Hotspots: complex files that change often \(from 47 commits\)/);
-  assert.match(text, /1\. src\/Inbox\.tsx {2}12 changes {2}2,149 lines {2}19 findings above\n {2}2\. src\/util\.ts {5}3 changes {5}80 lines\n/);
+  assert.match(text, /1\. src\/Inbox\.tsx {2}12 changes {2}2,149 lines {2}19 findings above\n {2}2\. src\/util\.ts {5}3 changes {4}180 lines\n/);
   assert.equal(formatHotspots({ ok: false, reason: "only 3 commits of history" }, [], new Map(), false), "Hotspots: not checked (only 3 commits of history).\n");
+  const small = findHotspots(new Map([["a.ts", 9]]), new Map([["a.ts", { lines: 60, complexity: 80 }]]));
+  assert.equal(formatHotspots({ ok: true, commits: 20, changes: new Map() }, small, new Map(), true), "No hotspots found (the files that change most are small and have no findings).\n");
 });

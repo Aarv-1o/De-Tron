@@ -1,5 +1,7 @@
 import type { Confidence } from "../confidence.ts";
 import { hasParams, isCatchAll, parsePath, reaches, type ApiPath } from "./paths.ts";
+import { isTestFile } from "../../index/files.ts";
+import { callUrl } from "./calls.ts";
 import { fullRoutes, type FullRoute } from "./resolve.ts";
 import type { ImportInfo } from "../../index/usage.ts";
 import type { ApiCall, FileApi } from "./types.ts";
@@ -53,10 +55,18 @@ function routesFor(path: ApiPath, routes: FullRoute[]): FullRoute[] {
   return strict.length ? strict : routes.filter((r) => reaches(path, r.path));
 }
 
+// Does the match rest on a real word in the path? `…/uppercase` "reaching" `/post/:id` only
+// because `:id` takes anything says nothing.
+const hasWordInCommon = (call: ApiPath, route: ApiPath) =>
+  call.segments.some((s, i) => s !== "*" && route.segments[route.segments.length - call.segments.length + i] === s);
+
 function checkCall(call: ApiCall & { file: string }, hits: FullRoute[], path: ApiPath, routes: FullRoute[]): MissingRoute | undefined {
   if (hits.some((r) => methodFits(call.method, r.method))) return undefined;
+  // Tests call the app to check it, sometimes on purpose against routes that don't exist.
+  if (isTestFile(call.file)) return undefined;
   const base = { file: call.file, line: call.line, method: call.method, path };
-  if (hits.length) return { kind: "wrong-method", confidence: "likely", ...base, closest: hits[0]! };
+  const solid = path.unknownPrefix ? hits.filter((r) => hasWordInCommon(path, r.path)) : hits;
+  if (solid.length) return { kind: "wrong-method", confidence: "likely", ...base, closest: solid[0]! };
   // Sure of the namespace (it's under /api like the real routes)? Then likely; otherwise it
   // may go to a server that isn't in this repo.
   const namespace = path.segments[0];
@@ -69,9 +79,13 @@ function checkCall(call: ApiCall & { file: string }, hits: FullRoute[], path: Ap
 export function findCrossStack(
   apis: Map<string, FileApi>, imports: Map<string, ImportInfo[]>, extraCalls: (ApiCall & { file: string })[] = [],
 ): CrossStack {
-  const routes = fullRoutes(apis, imports).filter((r) => !isCatchAll(r.path));
+  const repo = { apis, imports, files: new Set(apis.keys()) };
+  const routes = fullRoutes(repo).filter((r) => !isCatchAll(r.path));
   const calls = [...[...apis].flatMap(([file, api]) => api.calls.map((c) => ({ ...c, file }))), ...extraCalls]
-    .map((call) => ({ call, path: parsePath(call.url) }))
+    .map((call) => {
+      const url = callUrl(call, call.file, repo);
+      return { call, path: url === undefined ? undefined : parsePath(url) };
+    })
     .filter((c): c is { call: ApiCall & { file: string }; path: ApiPath } => !!c.path);
   // No backend in the repo, or no frontend calling it: nothing to compare.
   if (!routes.length || !calls.length) return { routes: routes.length, calls: calls.length, missing: [], unused: [] };
