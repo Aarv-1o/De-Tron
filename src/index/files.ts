@@ -16,6 +16,18 @@ const SKIP_DIRS = new Set([
 const TEST_FILE = /(^|\/)(__tests__|tests?|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^/]*\.py$|_test\.py$/;
 export const isTestFile = (path: string) => TEST_FILE.test(path);
 
+// Code Detron can't read yet. Counted so a scan never looks clean just because it skipped the code.
+const UNSUPPORTED_CODE = /\.(astro|vue|svelte|java|kt|go|rs|rb|php|cs|c|cc|cpp|h|hpp|swift|dart|scala)$/i;
+
+export function unsupportedCode(files: string[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const f of files) {
+    const ext = UNSUPPORTED_CODE.exec(f)?.[1]?.toLowerCase();
+    if (ext) counts.set(ext, (counts.get(ext) ?? 0) + 1);
+  }
+  return counts;
+}
+
 export function isSource(path: string): boolean {
   // Minified bundles are generated, not written by anyone.
   return detectLanguage(path) !== undefined && !/\.min\.(js|mjs|cjs)$/i.test(path);

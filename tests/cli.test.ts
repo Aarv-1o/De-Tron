@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { run } from "../src/cli/run.ts";
+import { makeRepo } from "./helpers.ts";
 
 const flagRepo = fileURLToPath(new URL("fixtures/duplicates/flag", import.meta.url));
 
@@ -35,7 +36,16 @@ test("help, unknown commands and missing folders", async () => {
   const unknown = await cli("fix", ".");
   assert.equal(unknown.code, 2);
   assert.match(unknown.text, /Unknown command: fix/);
+  const typo = await cli("scan", ".", "all");
+  assert.equal(typo.code, 2);
+  assert.match(typo.text, /Did you mean --all\?/);
   const missing = await cli("scan", "no/such/folder");
   assert.equal(missing.code, 2);
   assert.match(missing.text, /that folder doesn't exist/);
+});
+
+test("scan says which files it couldn't check", async () => {
+  const root = await makeRepo({ "src/a.ts": "export const a = 1;\n", "src/Nav.astro": "---\n---\n", "src/Hero.astro": "" });
+  const { text } = await cli("scan", root);
+  assert.match(text, /Not checked: 2 \.astro files \(not supported yet\)/);
 });
