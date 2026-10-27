@@ -13,7 +13,7 @@ const SKIP_DIRS = new Set([
 ]);
 
 // Repeated setup and unused helpers are normal in tests, so most checks skip them.
-const TEST_FILE = /(^|\/)(__tests__|tests?|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^/]*\.py$|_test\.py$/;
+const TEST_FILE = /(^|\/)(__tests__|tests?|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)tests?\.[cm]?[jt]s$|(^|\/)test_[^/]*\.py$|_test\.py$/;
 export const isTestFile = (path: string) => TEST_FILE.test(path);
 
 // Code Detron can't read yet (see src/languages/README.md to add one). Counted so a scan
