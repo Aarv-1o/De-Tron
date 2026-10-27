@@ -2,6 +2,7 @@ import { posix } from "node:path";
 import type { Node } from "web-tree-sitter";
 import type { FunctionInfo } from "../index/functions.ts";
 import type { ImportInfo } from "../index/usage.ts";
+import { extractJsApi } from "./javascriptApi.ts";
 import { commonInfo, descendants, enclosingClass, valueReferences, unquote } from "./nodes.ts";
 import type { LanguageSupport, Syntax } from "./types.ts";
 
@@ -162,6 +163,7 @@ export const javascript: LanguageSupport = {
   runsInBrowser: (file, imports) =>
     /\.[jt]sx$/.test(file) || FRONTEND_PATH.test(file) || imports.some((i) => FRONTEND_IMPORT.test(i)),
   unusedExportReason: "Exported, but nothing uses it.",
+  extractApi: extractJsApi,
 
   syntax,
 };
