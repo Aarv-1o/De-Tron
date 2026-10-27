@@ -40,3 +40,14 @@ test("does not flag files reached in other ways", async () => {
     "tests/test_plan.py": "def test_plan():\n    pass\n",
   }), ["likely worker.py"]); // worker.py itself: imports others, but nothing reaches it
 });
+
+test("Python apps and scripts, also when scanning the folder above the project", async () => {
+  assert.deepEqual(await unusedIn({
+    "proj/README.md": "Run: uvicorn api:app --reload\n",
+    "proj/api.py": "from fastapi import FastAPI\napp = FastAPI()\n", // started by uvicorn
+    "proj/server2.py": "from flask import Flask\napp = Flask(__name__)\n", // a web app
+    "proj/demo.py": "import gradio as gr\ngr.ChatInterface(lambda m, h: m).launch()\n", // runs on its own
+    "proj/blog.py": "def write():\n    pass\n", // "blog" is a common word: must still be caught
+    "proj/notes.md": "This blog explains the design.\n",
+  }), ["likely proj/blog.py", "maybe proj/demo.py"]);
+});

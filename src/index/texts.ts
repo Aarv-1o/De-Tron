@@ -11,3 +11,5 @@ export async function readTexts(root: string, files: string[]): Promise<Map<stri
   }
   return texts;
 }
+
+export const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
