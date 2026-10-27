@@ -90,7 +90,10 @@ export async function findUnusedPackages(index: RepoIndex): Promise<UnusedPackag
     for (const name of Object.keys(declared)) installed.set(name, await readJson<Manifest>(join(nodeModules, name, "package.json")));
     const quoted = (name: string) => new RegExp(`["'\`]${escapeRegex(name)}["'\`/]`).test(sourceText);
 
+    // TypeScript is used by the editor and type checks (astro check, vite) wherever there's TS.
+    const hasTypeScript = index.allFiles.some((f) => inScope(f) && /(^|\/)tsconfig[\w.-]*\.json$|\.(ts|tsx|mts|cts)$/.test(f));
     const isUsed = (name: string): boolean => {
+      if (name === "typescript" && hasTypeScript) return true;
       if (imported.has(name) || mentions(configText, name) || quoted(name)) return true;
       if (binNames(name, installed.get(name)).some((bin) => mentions(scripts, bin))) return true;
       if (name.startsWith("@types/")) {
