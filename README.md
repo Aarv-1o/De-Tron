@@ -5,7 +5,7 @@ Detron stops AI coding agents from making a mess of your codebase.
 It watches what your agent writes, catches duplicate code, dead code and bloat,
 gets the agent to clean it up, proves nothing broke, and explains what changed.
 
-> Status: early build. Not on npm yet. Works today: finding copied code and dead code.
+> Status: early build. Not on npm yet. Works today: copied code, dead code and code hygiene.
 
 ## Try it
 
@@ -21,8 +21,10 @@ npm run detron -- scan path/to/your/repo
 
 It finds:
 
-- **Copies:** exact and drifted copies of functions, including the same logic in JS and Python
+- **Copies:** exact and drifted copies of functions (with what differs), including the same logic in JS and Python
 - **Dead code:** unused packages (with sizes), unused files, functions nothing calls
+- **Code hygiene:** errors that are ignored or only logged, commented-out code, comments that
+  repeat the code, unused parameters, deep nesting
 
 Supports JavaScript, TypeScript (incl. JSX/TSX) and Python.
 
