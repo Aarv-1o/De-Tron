@@ -1,17 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
+import { makeRepo } from "./helpers.ts";
 import { buildIndex } from "../src/index/repo.ts";
 import { findUnusedFiles } from "../src/rules/codebase/unusedFiles.ts";
 
 async function unusedIn(files: Record<string, string>): Promise<string[]> {
-  const root = await mkdtemp(join(tmpdir(), "detron-"));
-  for (const [path, content] of Object.entries(files)) {
-    await mkdir(join(root, path, ".."), { recursive: true });
-    await writeFile(join(root, path), content);
-  }
+  const root = await makeRepo(files);
   return (await findUnusedFiles(await buildIndex(root))).map((f) => `${f.confidence} ${f.file}`);
 }
 

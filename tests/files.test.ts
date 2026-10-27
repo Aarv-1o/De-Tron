@@ -1,21 +1,10 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
+import { makeRepo } from "./helpers.ts";
 import { isSource, listRepoFiles } from "../src/index/files.ts";
 
 const sourceFiles = async (root: string) => (await listRepoFiles(root)).filter(isSource);
-
-async function makeRepo(files: Record<string, string>): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "detron-"));
-  for (const [path, content] of Object.entries(files)) {
-    await mkdir(join(root, path, ".."), { recursive: true });
-    await writeFile(join(root, path), content);
-  }
-  return root;
-}
 
 const FILES = {
   "src/app.ts": "",

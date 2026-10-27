@@ -1,17 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
+import { makeRepo } from "./helpers.ts";
 import { buildIndex } from "../src/index/repo.ts";
 
 test("buildIndex indexes a mixed JS + Python repo", async () => {
-  const root = await mkdtemp(join(tmpdir(), "detron-"));
-  await mkdir(join(root, "web"));
-  await mkdir(join(root, "api"));
-  await writeFile(join(root, "web/chat.js"), "export function stripJsonState(text) { return text; }\n");
-  await writeFile(join(root, "api/main.py"), "def _strip_json_state(text):\n    return text\n");
-  await writeFile(join(root, "api/broken.py"), "def oops(:\n");
+  const root = await makeRepo({
+    "web/chat.js": "export function stripJsonState(text) { return text; }\n",
+    "api/main.py": "def _strip_json_state(text):\n    return text\n",
+    "api/broken.py": "def oops(:\n",
+  });
 
   const index = await buildIndex(root);
   assert.deepEqual(index.files, ["api/broken.py", "api/main.py", "web/chat.js"]);
