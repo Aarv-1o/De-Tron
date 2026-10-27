@@ -13,5 +13,5 @@ test("every supported extension has a grammar and an adapter", () => {
 
 test("a language is either supported or listed as not supported yet, never both", () => {
   const notYet = unsupportedCode(["a.astro", "a.vue", "a.svelte", "A.java", "a.go", "a.rs", "a.py", "a.ts"]);
-  assert.deepEqual([...notYet.keys()].sort(), ["astro", "go", "java", "rs", "svelte", "vue"]);
+  assert.deepEqual([...notYet.keys()].sort(), ["go", "java", "rs", "svelte", "vue"]);
 });

@@ -8,7 +8,8 @@ export type { LanguageId } from "../languages/index.ts";
 export interface ParsedFile {
   path: string;
   language: LanguageId;
-  source: string;
+  source: string; // what was parsed: for Astro, the code with the template blanked out
+  original?: string; // the file as written, when `source` differs from it
   // web-tree-sitter trees live in WASM memory: call tree.delete() when done.
   tree: Tree;
 }
@@ -44,8 +45,10 @@ export async function parseSource(source: string, language: LanguageId): Promise
 
 // Returns undefined for files in a language Detron doesn't support yet.
 export async function parseFile(path: string): Promise<ParsedFile | undefined> {
-  const language = detectLanguage(path);
-  if (!language) return undefined;
-  const source = await readFile(path, "utf8");
-  return { path, language, source, tree: await parseSource(source, language) };
+  const grammar = grammarForFile(path);
+  if (!grammar) return undefined;
+  const raw = await readFile(path, "utf8");
+  const source = grammar.preprocess ? grammar.preprocess(raw) : raw;
+  const tree = await parseSource(source, grammar.id);
+  return { path, language: grammar.id, source, ...(source !== raw ? { original: raw } : {}), tree };
 }

@@ -18,7 +18,7 @@ export const isTestFile = (path: string) => TEST_FILE.test(path);
 
 // Code Detron can't read yet (see src/languages/README.md to add one). Counted so a scan
 // never looks clean just because it skipped the code.
-const UNSUPPORTED_CODE = /\.(astro|vue|svelte|java|kt|go|rs|rb|php|cs|c|cc|cpp|h|hpp|swift|dart|scala)$/i;
+const UNSUPPORTED_CODE = /\.(vue|svelte|java|kt|go|rs|rb|php|cs|c|cc|cpp|h|hpp|swift|dart|scala)$/i;
 
 export function unsupportedCode(files: string[]): Map<string, number> {
   const counts = new Map<string, number>();

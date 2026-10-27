@@ -46,7 +46,7 @@ test("help, unknown commands and missing folders", async () => {
 });
 
 test("scan says which files it couldn't check", async () => {
-  const root = await makeRepo({ "src/a.ts": "export const a = 1;\n", "src/Nav.astro": "---\n---\n", "src/Hero.astro": "" });
+  const root = await makeRepo({ "src/a.ts": "export const a = 1;\n", "src/Nav.vue": "<template></template>\n", "src/Hero.vue": "" });
   const { text } = await cli("scan", root);
-  assert.match(text, /Not checked: 2 \.astro files \(not supported yet\)/);
+  assert.match(text, /Not checked: 2 .vue files \(not supported yet\)/);
 });
