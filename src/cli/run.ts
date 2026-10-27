@@ -6,6 +6,7 @@ import { buildIndex } from "../index/repo.ts";
 import { extractUsage } from "../index/usage.ts";
 import { supportFor } from "../languages/index.ts";
 import { crossStackToJson, formatCrossStack } from "../report/crossStack.ts";
+import { formatHotspots, hotspotsToJson } from "../report/hotspots.ts";
 import { deadCodeToJson, formatDeadCode, type DeadCode } from "../report/deadCode.ts";
 import { duplicatesToJson, formatDuplicates } from "../report/duplicates.ts";
 import { formatHygiene } from "../report/hygiene.ts";
@@ -13,9 +14,10 @@ import { findDeadFunctions } from "../rules/codebase/deadFunctions.ts";
 import { findDifferences, type CopyDifferences } from "../rules/codebase/differences.ts";
 import { findDuplicates, type DuplicateGroup } from "../rules/codebase/duplicates.ts";
 import { findFunctionShapeIssues } from "../rules/codebase/functionShape.ts";
+import { findHotspots, gitHistory, indentComplexity, stringRows, type FileSize } from "../rules/codebase/hotspots.ts";
 import { findUnusedFiles } from "../rules/codebase/unusedFiles.ts";
 import { findUnusedPackages } from "../rules/codebase/unusedPackages.ts";
-import { findCrossStack } from "../rules/crossStack/check.ts";
+import { findCrossStack, type CrossStack } from "../rules/crossStack/check.ts";
 import { htmlCallsIn } from "../rules/crossStack/htmlCalls.ts";
 import type { FileApi } from "../rules/crossStack/types.ts";
 import { runLineRules, type LineFinding } from "../rules/line/index.ts";
@@ -24,7 +26,7 @@ const HELP = `Detron: stops AI coding agents from making a mess of your codebase
 
 Usage:
   detron scan [path]    Find copied code, dead code, frontend/backend mismatches and
-                        code hygiene issues in a repo
+                        code hygiene issues in a repo, and where to clean first
                         (default: current folder)
 
 Options:
@@ -52,11 +54,13 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
   const started = Date.now();
   const hygiene: LineFinding[] = [];
   const apis = new Map<string, FileApi>();
+  const sizes = new Map<string, FileSize>();
   const index = await buildIndex(root, {
     onFile: async (parsed, file) => {
       const imports = extractUsage(parsed).imports.map((i) => i.source);
       hygiene.push(...(await runLineRules(parsed, file, imports)));
       apis.set(file, supportFor(parsed.language).extractApi(parsed.tree.rootNode, file));
+      sizes.set(file, indentComplexity(parsed.source, stringRows(parsed.tree.rootNode)));
     },
   });
   hygiene.push(...findFunctionShapeIssues(index.functions));
@@ -83,6 +87,9 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
   for (const file of deadFiles) apis.delete(file);
   const imports = new Map([...index.usage].map(([file, u]) => [file, u.imports]));
   const crossStack = findCrossStack(apis, imports, await htmlCallsIn(root, index.allFiles));
+  const history = await gitHistory(root);
+  for (const file of deadFiles) sizes.delete(file); // a dead file isn't worth cleaning: delete it
+  const hotspots = history.ok ? findHotspots(history.changes, sizes) : [];
 
   if (json) {
     const report = {
@@ -90,7 +97,7 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
       skippedFiles: Object.fromEntries(skipped),
       filesWithSyntaxErrors: index.filesWithSyntaxErrors,
       duplicates: duplicatesToJson(groups, differences), deadCode: deadCodeToJson(dead),
-      crossStack: crossStackToJson(crossStack), hygiene: liveHygiene,
+      crossStack: crossStackToJson(crossStack), hygiene: liveHygiene, hotspots: hotspotsToJson(history, hotspots),
     };
     out(`${JSON.stringify(report, null, 2)}\n`);
     return 0;
@@ -107,11 +114,28 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
   out(`\n${formatDeadCode(dead, all)}`);
   out(`\n${formatCrossStack(crossStack, all)}`);
   out(`\n${formatHygiene(liveHygiene, all)}`);
+  const perFile = findingsPerFile({ groups, dead, crossStack, hygiene: liveHygiene }, all);
+  out(`\n${formatHotspots(history, hotspots, perFile, all)}`);
   if (index.filesWithSyntaxErrors.length) {
     out(`\nNote: ${index.filesWithSyntaxErrors.length} file(s) have syntax Detron couldn't fully read, so results there may be incomplete:\n`);
     for (const f of index.filesWithSyntaxErrors) out(`  ${f}\n`);
   }
   return 0;
+}
+
+// How many of the findings shown above are in each file.
+function findingsPerFile(found: { groups: DuplicateGroup[]; dead: DeadCode; crossStack: CrossStack; hygiene: LineFinding[] }, all: boolean) {
+  const shown = (c: string) => all || c !== "maybe";
+  const files = [
+    ...found.groups.filter((g) => shown(g.confidence)).flatMap((g) => g.functions.map((f) => f.file)),
+    ...found.dead.functions.filter((d) => shown(d.confidence)).map((d) => d.fn.file),
+    ...found.crossStack.missing.filter((m) => shown(m.confidence)).map((m) => m.file),
+    ...found.crossStack.unused.filter((u) => shown(u.confidence)).map((u) => u.route.file),
+    ...found.hygiene.filter((f) => shown(f.confidence)).map((f) => f.file),
+  ];
+  const counts = new Map<string, number>();
+  for (const file of files) counts.set(file, (counts.get(file) ?? 0) + 1);
+  return counts;
 }
 
 // Returns the exit code: 0 ok, 2 bad input.
