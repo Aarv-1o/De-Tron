@@ -88,8 +88,8 @@ Optional later: bring-your-own API key, for scans with no agent running (cloned 
 **Dropped after hand-check** (mostly false alarms): async without await,
 tiny single-use helpers, assign-then-return.
 
-Status: all of the above are built and report through `detron scan`. Vague names are
-not built yet.
+Status: all of the above are built and report through `detron scan`, plus the cross-stack
+check. Not built yet: vague names, hotspots, reuse hint.
 
 ## Safety rules
 

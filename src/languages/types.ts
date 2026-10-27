@@ -1,6 +1,7 @@
 import type { Node } from "web-tree-sitter";
 import type { FunctionInfo } from "../index/functions.ts";
 import type { ImportInfo } from "../index/usage.ts";
+import type { FileApi } from "../rules/crossStack/types.ts";
 
 export type LanguageId = "javascript" | "typescript" | "tsx" | "python";
 
@@ -19,6 +20,8 @@ export interface LanguageSupport {
   unusedExportReason: string; // what "exported but unused" means in this language
   // Browser code: an error that's only logged there is one the user never sees.
   runsInBrowser(file: string, imports: string[]): boolean;
+  // The HTTP routes this file serves and the API calls it makes, for the cross-stack check.
+  extractApi(root: Node, file: string): FileApi;
   syntax: Syntax;
 }
 

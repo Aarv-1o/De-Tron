@@ -5,6 +5,8 @@ import type { ParsedFile } from "../parse/parse.ts";
 export interface ImportInfo {
   source: string; // "react", "./utils", "agents.planner", ".planner"
   names: string[]; // what was imported by name; empty for `import x` / side-effect imports
+  // Local name -> the name in the source: { chatRouter: "router", api: "default", utils: "*" }.
+  bound: Record<string, string>;
   line: number;
 }
 

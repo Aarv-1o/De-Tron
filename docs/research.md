@@ -141,3 +141,40 @@ What made the difference:
   (route handler, LangGraph node, Gradio callback) has a fixed signature.
 - **A reason in a comment counts; "/* ignore */" doesn't.**
 - **Browser vs server.** An error only logged in the browser is one the user never sees.
+
+## Cross-stack check v1 results (Oct 2026)
+
+Reads Express (routers, `app.use` mounts across files, `router.route()`), Next.js route
+files, FastAPI (`APIRouter(prefix=)`, `include_router`) and Flask (blueprints). Calls:
+fetch, axios, EventSource, `xhr.open`, your own fetch wrappers, inline `fetch` in HTML,
+and `<form action>`. URLs built from constants in the same file are worked out
+(`${API}/${id}` with `const API = "/api/clients"`).
+
+| Repo | Calls / routes | Found | Checked by hand |
+|---|---|---|---|
+| Escrows-AI | 114 / 95 | 5 routes nothing calls | 5 of 5 real (`/api/billing/plans`, `/sequences/blocks`...) |
+| Travscape, BlogManager | 2 / 3, 2 / 4 | nothing | right |
+| Blind: proshop_mern, mern-skeleton, mern-mediastream, MERN-Template | 23/24, 7/7, 14/15, 3/4 | nothing (after 2 fixes) | right |
+| proshop with 2 routes renamed on purpose | | 1 of 2 caught, with the right "did you mean" | see gaps |
+
+What made the difference:
+- **A literal segment beats a parameter.** `POST /api/users/${id}` was "reaching"
+  `POST /api/users/export`, which hid a dead route and a wrong-method call.
+- **Unknown base URL? Match the end only.** `${BASE}/users` can still be checked.
+- **LAN dev servers are local.** A blind repo called `http://172.24.147.103:1337/auth/...`.
+- **URLs in JSX count as uses** (`<ReactPlayer url={"/api/media/video/" + id}>`), but never
+  as calls: `/dashboard` in a link may be a frontend page.
+
+Known gaps:
+- A renamed literal route behind a parameter route isn't caught: Express itself sends
+  `/api/products/top` to `/:id`, so the call still "reaches" a route.
+- Routes called from outside the repo (mobile apps, webhooks) look unused. Names like
+  webhook/callback/health are skipped; other routes are only "likely" when the frontend
+  uses other routes from the same file.
+- Base URLs from another file (an axios instance with `baseURL` in `api.js`) aren't followed;
+  those calls are matched on the end of the path.
+
+Dogfooding: the self-scan flagged the route reader's second copy of the Python import
+walk (fixed by recording bindings in the import reader), a 5-level function and two
+5-parameter functions. It also flagged two comments that showed example code
+(`// xhr.open("POST", url)`) as commented-out code: a false alarm worth remembering.

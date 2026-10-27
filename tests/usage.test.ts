@@ -58,3 +58,10 @@ test("export lists don't count as using a name", async () => {
   assert.equal(cjs.get("a"), 2, "definition + the call inside c");
   assert.equal(cjs.get("b"), 1);
 });
+
+test("records which local name each import binds", async () => {
+  const js = await usage(`import a, { b as c } from "./x";\nimport * as d from "./y";\nconst e = require("./z");\nconst { f, g: h } = require("./w");\n`, "typescript");
+  assert.deepEqual(js.imports.map((i) => i.bound), [{ a: "default", c: "b" }, { d: "*" }, { e: "default" }, { f: "f", h: "g" }]);
+  const py = await usage(`import os\nimport app.api.chat as chat\nimport app.db\nfrom app.api.news import router as news_router, X\n`, "python");
+  assert.deepEqual(py.imports.map((i) => i.bound), [{ os: "*" }, { chat: "*" }, {}, { news_router: "router", X: "X" }]);
+});
