@@ -17,6 +17,8 @@ export interface LineChange {
 export interface CopyDifferences {
   base: FunctionInfo; // the most common version
   copies: { fn: FunctionInfo; changes: LineChange[] }[];
+  // When most lines differ, the functions share a setup or some wording, not their logic.
+  mostlyDifferent: boolean;
 }
 
 const KEYWORDS = new Set([
@@ -93,8 +95,11 @@ function compare(base: SourceLine[], copy: SourceLine[]): LineChange[] {
   const changes: LineChange[] = [];
   const onlyBase: SourceLine[] = [];
   const onlyCopy: SourceLine[] = [];
+  // `headers: { "Content-Type": "application/json" }` split over three lines is the same code.
+  const squash = (ls: SourceLine[]) =>
+    ls.map((l) => normalizeLine(l.text)).join("").replace(/\s+/g, "").replace(/,(?=[}\])])/g, ""); // trailing commas too
   const flush = () => {
-    changes.push(...pairUp(onlyBase, onlyCopy));
+    if (squash(onlyBase) !== squash(onlyCopy)) changes.push(...pairUp(onlyBase, onlyCopy));
     onlyBase.length = 0;
     onlyCopy.length = 0;
   };
@@ -130,5 +135,7 @@ export async function findDifferences(root: string, group: DuplicateGroup): Prom
     .filter((fn) => key(fn) !== key(base))
     .map((fn) => ({ fn, changes: compare(baseLines, bodyLines(fn, sources.get(fn.file) ?? "")) }))
     .filter((c) => c.changes.length > 0);
-  return copies.length ? { base, copies } : undefined;
+  if (!copies.length) return undefined;
+  const mostlyDifferent = copies.every((c) => c.changes.length > baseLines.length / 2);
+  return { base, copies, mostlyDifferent };
 }

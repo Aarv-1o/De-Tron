@@ -5,6 +5,7 @@ import { buildIndex } from "../src/index/repo.ts";
 import { formatDuplicates } from "../src/report/duplicates.ts";
 import { findDifferences, normalizeLine } from "../src/rules/codebase/differences.ts";
 import { findDuplicates } from "../src/rules/codebase/duplicates.ts";
+import { makeRepo } from "./helpers.ts";
 
 const flagRepo = fileURLToPath(new URL("fixtures/duplicates/flag", import.meta.url));
 
@@ -42,4 +43,35 @@ test("report shows what differs, value changes first", async () => {
   assert.match(text, /What differs from web\/(time\.ts:1 timeAgo|Page\.tsx:2 fileTimeAgo):/);
   assert.match(text, /web\/chat\.js:2 relativeTime\n +\d+: if \(mins < 1\) return "just now";\n +instead of: if \(\w+ < 1\) return ['"]Just now['"];/);
   assert.match(text, /Identical apart from names\./);
+});
+
+test("reformatting isn't a difference; functions that differ in most lines are flagged as such", async () => {
+  const root = await makeRepo({
+    "a.js": `export function send(msg) {
+  if (!msg) return;
+  const res = fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: msg });
+  if (!res.ok) throw new Error("HTTP error! status: " + res.status);
+  return res;
+}
+`,
+    "b.js": `export function post(text) {
+  if (!text) return;
+  const res = fetch("/api/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: text,
+  });
+  if (!res.ok) throw new Error("HTTP error! status: " + res.status);
+  return res;
+}
+`,
+  });
+  const groups = findDuplicates((await buildIndex(root)).functions);
+  const similar = groups.find((g) => g.kind === "similar");
+  if (similar) {
+    const diff = await findDifferences(root, similar);
+    assert.equal(diff, undefined, "only the layout differs");
+  }
 });

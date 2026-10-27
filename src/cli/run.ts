@@ -56,7 +56,10 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
   const differences = new Map<DuplicateGroup, CopyDifferences>();
   for (const group of groups) {
     const diff = await findDifferences(root, group);
-    if (diff) differences.set(group, diff);
+    if (!diff) continue;
+    differences.set(group, diff);
+    // Similar structure and shared wording, but most lines differ: a hint, not a copy.
+    if (diff.mostlyDifferent) group.confidence = "maybe";
   }
   const dead: DeadCode = {
     packages: await findUnusedPackages(index),
