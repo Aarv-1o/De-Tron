@@ -19,7 +19,7 @@ export interface FileContext {
   frontend: boolean;
 }
 
-export type LineRule = (context: FileContext) => LineFinding[];
+export type LineRule = (context: FileContext) => LineFinding[] | Promise<LineFinding[]>;
 
 export function* walk(node: Node): Generator<Node> {
   yield node;

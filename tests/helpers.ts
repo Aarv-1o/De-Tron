@@ -21,7 +21,7 @@ export async function check(file: string, source: string, rule?: string): Promis
   const tree = await parseSource(source, language);
   try {
     const parsed = { path: file, language, source, tree };
-    return runLineRules(parsed, file, extractUsage(parsed).imports.map((i) => i.source))
+    return (await runLineRules(parsed, file, extractUsage(parsed).imports.map((i) => i.source)))
       .filter((f) => !rule || f.rule === rule)
       .map((f) => `${f.line} ${f.rule} ${f.confidence}`);
   } finally {

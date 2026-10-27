@@ -67,3 +67,40 @@ def search(q):
     "27 catch-returns-default maybe",
   ]);
 });
+
+test("commented-out code: blocks are sure, single lines likely, prose and directives skipped", async () => {
+  assert.deepEqual(await check("agents/chatbot.py", `
+# checkpointer = InMemorySaver()
+
+# builder = StateGraph(AgentState)
+# builder.add_node("Chatbot", chatbot_node)
+x = 1
+#search_key=os.getenv("SEARCH_KEY")
+# html=True enables serving index.html for directory paths
+# TODO: x = compute()
+y = 2  # noqa: E501
+`, "commented-out-code"), ["2 commented-out-code sure", "7 commented-out-code likely"]);
+
+  assert.deepEqual(await check("src/app.ts", `
+// const old = load();
+// eslint-disable-next-line no-console
+// lets a broker dismiss it early; it stays hidden afterwards
+// return cached;
+const a = 1;
+`, "commented-out-code"), ["2 commented-out-code likely", "5 commented-out-code likely"]);
+});
+
+test("comments that repeat the code, but not ones that explain why, or section headers", async () => {
+  assert.deepEqual(await check("src/firebase.js", `
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+// Encrypt the access token for storage
+const encryptedToken = encrypt(accessToken);
+// Retry once because the first call after deploy often times out
+const res = await fetchClients();
+// ─── Rate Limiting ───
+const authLimiter = rateLimit({});
+// Done
+start();
+`, "comment-repeats-code"), ["2 comment-repeats-code likely", "4 comment-repeats-code likely"]);
+});

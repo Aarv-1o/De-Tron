@@ -17,7 +17,7 @@ export interface RepoIndex {
 export interface IndexOptions {
   // Called with each parsed file before its tree is freed, so checks that need the
   // syntax tree can run in the same pass instead of parsing everything twice.
-  onFile?: (parsed: ParsedFile, file: string) => void;
+  onFile?: (parsed: ParsedFile, file: string) => void | Promise<void>;
 }
 
 export async function buildIndex(root: string, options: IndexOptions = {}): Promise<RepoIndex> {
@@ -34,7 +34,7 @@ export async function buildIndex(root: string, options: IndexOptions = {}): Prom
       if (parsed.tree.rootNode.hasError) filesWithSyntaxErrors.push(file);
       functions.push(...extractFunctions(parsed, file));
       usage.set(file, extractUsage(parsed));
-      options.onFile?.(parsed, file);
+      await options.onFile?.(parsed, file);
     } finally {
       parsed.tree.delete();
     }
