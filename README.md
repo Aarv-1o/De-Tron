@@ -6,7 +6,7 @@ It watches what your agent writes, catches duplicate code, dead code and bloat,
 gets the agent to clean it up, proves nothing broke, and explains what changed.
 
 > Status: early build. Not on npm yet. Works today: copied code, dead code, frontend/backend
-> mismatches, database checks, code hygiene and hotspots.
+> mismatches, security, crash risks, database checks, code hygiene and hotspots.
 
 ## Try it
 
@@ -30,6 +30,13 @@ It finds:
   calls with the wrong method, routes nothing calls. Backends: Express, Koa, Hono, Fastify,
   NestJS, Next.js, FastAPI, Flask, Django/DRF. Frontends: fetch, axios (with base URLs),
   apisauce (React Native), superagent, generated clients, Vite's proxy
+- **Security, endpoint by endpoint:** routes with no auth, admin routes without a role check,
+  records loaded by id with no owner check (IDOR), login with no rate limit. In the code: SQL /
+  NoSQL / command injection, eval, SSRF, open redirects, file paths, mass assignment, hardcoded
+  and leaked secrets, `.env` in the repo, XSS, CORS with credentials, leaked stack traces, weak
+  password storage, unverified JWTs, `Math.random()` tokens
+- **Crash risks:** async Express 4 handlers with no try/catch, `JSON.parse` on outside data,
+  exiting the process in a handler
 - **Database:** money stored as floats, queries inside loops (N+1), trees walked one query
   per level, INSERT without columns; hints for SELECT *, ORDER BY RAND() and `LIKE '%x%'`
   search. Mongoose, Sequelize, TypeORM, Prisma, Knex, Django, SQLAlchemy, SQLModel, raw SQL

@@ -21,7 +21,7 @@ come from **the agent not knowing what already exists**, not from single bad lin
 | JS/TS (frontend + Node backend), Python and Astro | Other languages (Java, C/C++, Go, Vue, Svelte…): at the end, one adapter each. Until then, scans say what they skipped |
 | Works with every agent (see below) | VS Code / editor UI |
 | Codebase checks + the line rules that passed our hand-check | Project planner, DB mind maps |
-| Safety layer (checkpoint, tests, type check, undo) | Security scanning (other tools do this) |
+| Safety layer (checkpoint, tests, type check, undo) | General security scanning (Semgrep, CodeQL do this): Detron checks what AI agents get wrong, using its route map |
 | Change card | Our own paid agent |
 
 ## Agent compatibility
@@ -89,7 +89,7 @@ Optional later: bring-your-own API key, for scans with no agent running (cloned 
 tiny single-use helpers, assign-then-return.
 
 Status: all of the above are built and report through `detron scan`, plus the cross-stack
-check, database checks and hotspots. Every finding comes with why, fix steps, safe or ask
+check, security and crash checks, database checks and hotspots. Every finding comes with why, fix steps, safe or ask
 first, and how to check (`--agent`, `--json`). Not built yet: vague names, reuse hint.
 
 ## Safety rules

@@ -270,3 +270,57 @@ Not in the book, but the most common database mistake in AI code: queries inside
 False alarms found and fixed on the way: `TOKEN_RE.exec()` and `Object.create()` read as model
 queries; `totalUsed` read as money; a seed script inserting row by row; tests holding example
 SQL; and "no database issues" printed for repos with no database at all.
+
+## Security and crash checks v1 (Oct 2026)
+
+What AI-built apps get wrong, from 2025-2026 scans and incidents:
+- **Broken access control is the #1 critical class.** CSO Online's test of 15 agent-built apps
+  found 69 vulnerabilities, mostly API authorization and business logic (no exploitable SQL
+  injection or XSS). Escape scanned 5,600+ vibe-coded apps: 2,000+ vulnerabilities, most
+  reachable without logging in, 400+ exposed secrets, 175 PII exposures.
+- **Incidents:** Lovable (CVE-2025-48757: missing Supabase row-level security, 303 endpoints in
+  170 apps; an app with an inverted auth guard exposed 18K users); Moltbook (a Supabase key in
+  frontend JS with no RLS gave full database access; sign-up had no rate limit).
+- **Numbers:** Veracode: 45% of AI code samples failed OWASP Top 10 tests, 86% on XSS-prone
+  tasks. Hardcoded secrets in 72% of 38,630 AI Android apps (Cybernews).
+- **Crashes:** error handling that assumes the happy path, missing edge cases, data-shape
+  mismatches, assumed environment variables.
+
+Lessons from the books:
+- **Alice & Bob (ch. 4):** validate on the server; parameterized queries; encode output;
+  allowlist redirects; one global error handler; never show stack traces or DB errors; fail
+  closed. **Ch. 5:** SSRF (allowlist outbound URLs), CSRF.
+- **SQL Antipatterns ch. 21:** SQL injection has no legitimate use, and "check the back seat":
+  values from your own database can carry it too. **Ch. 20:** a password the app can read back
+  is the antipattern (unless it's a credential the app uses to call another service).
+
+Design: the endpoint checks use the route map from the cross-stack check. Each route knows its
+guards: middleware on the route, on every mount above it, `use()` before it (in order),
+NestJS guards / forRoutes / global guards, Fastify hooks and autohooks, FastAPI dependencies,
+Flask/Django decorators, DRF permission classes. Checks inside the handler (`jwt.verify`,
+`getServerSession`) count. User input is followed through variables in the same function,
+but not through calls: a database record isn't user input.
+
+| Repo | Found | Checked by hand |
+|---|---|---|
+| Escrows-AI | nothing | right: auth middleware on every data route, inline token checks on /me, ownership in every query, rate limits on login |
+| proshop | upload route with no auth; 2 order IDORs (any user reads / marks paid any order); no login rate limit; hints: localStorage JSON.parse | all real (known issues of this tutorial app) |
+| NestJS RealWorld | unauthenticated `DELETE /api/users/:slug`; 3 article IDORs (edit/delete anyone's article or comment); prisma/.env committed | all real |
+| mern-skeleton/mediastream | public user list; JWT secret fallback; `new User(req.body)`; Math.random salt | real |
+| Django RealWorld | DEBUG = True in settings | real |
+| BlogManager | CORS * with credentials; predictable session ids; no auth (hint) | real |
+| Travscape | 7 innerHTML with data (chat titles are user text) | real |
+| FastAPI template | .env committed (template placeholders) | real pattern |
+| Hono examples | open writes in an app where only /auth/* is guarded | consistent with the code (an example) |
+
+False alarms found and fixed on the way (26 Hono/Koa async-handler alarms; then 1-2 each):
+async handlers flagged outside Express 4 (Koa, Hono and Express 5 catch them); POST /users
+(sign-up) as unauthenticated; admin-guarded routes as IDORs; FastAPI `get_current_active_superuser`
+and Fastify autohooks not read as auth; @fastify/autoload files reported unused (15) and
+dropped with their hooks; hCaptcha site keys and Firebase web keys as secrets; `sse.send(e)` as
+an error leak; a DB record's path as user input; SSRF on URLs with a fixed host; one app's auth
+applied to another app in the same repo; upload temp paths as user paths.
+
+Known gaps: Supabase/Firebase row-level security rules aren't read (they live in the database
+or console, not the repo); NoSQL injection is only flagged for whole-body filters, not single
+fields; ownership checks done in a service layer called from the handler aren't followed.
