@@ -18,6 +18,7 @@ test("scan prints copies found in a repo", async () => {
   assert.match(text, /\d+ files, \d+ functions/);
   assert.match(text, /Copies \(3\)/);
   assert.match(text, /web\/time\.ts:1 {2}timeAgo/);
+  assert.match(text, /Dead code|No dead code found/);
 });
 
 test("scan --json is valid JSON with the groups", async () => {
@@ -25,6 +26,7 @@ test("scan --json is valid JSON with the groups", async () => {
   assert.equal(code, 0);
   const data = JSON.parse(text);
   assert.ok(data.duplicates.some((g: { kind: string }) => g.kind === "cross-language"));
+  assert.deepEqual(Object.keys(data.deadCode).sort(), ["files", "functions", "packages"]);
 });
 
 test("help, unknown commands and missing folders", async () => {
