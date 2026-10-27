@@ -91,7 +91,9 @@ export async function scanRepo(root: string): Promise<ScanResult> {
   // Rate limiting may be set up in ways we can't trace (a gateway, a global limiter): if a
   // library is there, a route without one is only a hint.
   const rateLimitLibrary = [...imports.values()].some((list) => list.some((i) => RATE_LIMIT_LIBRARY.test(i.source)));
-  const endpointIssues = findEndpointIssues({ routes: crossStack.allRoutes, functions: index.functions, texts: await readTexts(root, index.files), rateLimitLibrary });
+  const endpointIssues = findEndpointIssues({
+    routes: crossStack.allRoutes, functions: index.functions, texts: await readTexts(root, index.files), rateLimitLibrary, allFiles: index.allFiles,
+  });
   // Findings that depend on the whole repo: Express 5 (or express-async-errors) catches async
   // errors; a hashing library anywhere means passwords may be hashed in a model hook.
   const manifest = await readTexts(root, index.allFiles.filter((f) => /(^|\/)package\.json$/.test(f)));

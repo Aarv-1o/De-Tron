@@ -33,6 +33,16 @@ export interface EndpointInput {
   functions: FunctionInfo[];
   texts: Map<string, string>; // source of the files, for named handlers
   rateLimitLibrary: boolean; // express-rate-limit, slowapi... imported somewhere
+  allFiles: string[]; // to tell apps apart in a repo of several (examples, monorepos)
+}
+
+// The app a file belongs to: the deepest folder above it with a package.json or Python project file.
+function appOf(files: string[]): (file: string) => string {
+  const roots = files
+    .filter((f) => /(^|\/)(package\.json|pyproject\.toml|requirements\.txt|manage\.py)$/.test(f))
+    .map((f) => (f.includes("/") ? f.slice(0, f.lastIndexOf("/") + 1) : ""))
+    .sort((a, b) => b.length - a.length);
+  return (file) => roots.find((r) => file.startsWith(r)) ?? "";
 }
 
 // The code that handles a route: inline, or the named function (controller) it points at.
@@ -57,13 +67,16 @@ function handlerCode(route: FullRoute, functions: FunctionInfo[], texts: Map<str
 
 const hasParam = (route: FullRoute) => route.path.segments.includes("*");
 
-export function findEndpointIssues({ routes, functions, texts, rateLimitLibrary }: EndpointInput): LineFinding[] {
+export function findEndpointIssues({ routes, functions, texts, rateLimitLibrary, allFiles }: EndpointInput): LineFinding[] {
   const found: LineFinding[] = [];
   const add = (route: FullRoute, rule: string, confidence: Confidence, message: string) =>
     found.push({ rule, file: route.file, line: route.line, confidence, message });
   const code = new Map(routes.map((r) => [r, handlerCode(r, functions, texts)]));
   const authed = (r: FullRoute) => r.guards.some((g) => AUTH_GUARD.test(g)) || AUTH_INLINE.test(code.get(r)!);
-  const appHasAuth = routes.some(authed);
+  // "Other routes check auth" only counts within the same app.
+  const app = appOf(allFiles);
+  const appsWithAuth = new Set(routes.filter(authed).map((r) => app(r.file)));
+  const appHasAuthFor = (r: FullRoute) => appsWithAuth.has(app(r.file));
   // Files where some handler scopes records to the caller: there, one that doesn't is an oversight.
   const unparam = (text: string) => text.replace(/\b(req|request)\.params\b/g, "");
   const scopingFiles = new Set(routes.filter((r) => SCOPED.test(unparam(code.get(r)!))).map((r) => r.file));
@@ -78,7 +91,7 @@ export function findEndpointIssues({ routes, functions, texts, rateLimitLibrary 
     const isAuthed = authed(route);
     const isAdmin = /\/admin(\/|$)/i.test(route.path.text);
 
-    if (!isAuthed && !isPublic && appHasAuth) {
+    if (!isAuthed && !isPublic && appHasAuthFor(route)) {
       if (WRITE.has(route.method)) add(route, "unauthenticated-route", "likely", `${label(route)} changes data, and nothing checks who's calling (other routes do)`);
       else if (PRIVATE_READ.test(route.path.text) || isAdmin) add(route, "unauthenticated-route", "likely", `${label(route)} returns private data, and nothing checks who's calling (other routes do)`);
     }
@@ -95,9 +108,12 @@ export function findEndpointIssues({ routes, functions, texts, rateLimitLibrary 
       add(route, "auth-without-rate-limit", rateLimitLibrary ? "maybe" : "likely", `${label(route)} has no rate limit: passwords and codes can be guessed by brute force`);
     }
   }
-  if (!appHasAuth && routes.some((r) => WRITE.has(r.method) && !PUBLIC_PATH.test(r.path.text))) {
-    const first = routes.find((r) => WRITE.has(r.method) && !PUBLIC_PATH.test(r.path.text))!;
-    add(first, "no-auth-at-all", "maybe", `No route in this app checks who's calling: anyone can call every endpoint`);
+  // Once per app with no auth at all.
+  const reported = new Set<string>();
+  for (const r of routes) {
+    if (appHasAuthFor(r) || !WRITE.has(r.method) || PUBLIC_PATH.test(r.path.text) || reported.has(app(r.file))) continue;
+    reported.add(app(r.file));
+    add(r, "no-auth-at-all", "maybe", `No route in this app checks who's calling: anyone can call every endpoint`);
   }
   return found;
 }

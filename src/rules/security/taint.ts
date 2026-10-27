@@ -4,8 +4,9 @@ import { walk } from "../line/types.ts";
 // Does a value come from the user? Directly (req.body.url), or through a variable set from
 // user input in the same function (const { url } = req.query; ... fetch(url)).
 
-const JS_INPUT = /\b(req|request)\.(body|query|params|headers|cookies|files?)\b|\bctx\.(request\.body|query|params)\b|\bsearchParams\.get\(|\bevent\.(body|queryStringParameters|pathParameters)\b|\bformData\.get\(/;
-const PY_INPUT = /\brequest\.(args|form|json|values|data|GET|POST|query_params|path_params|files|cookies|headers|get_json\(\))\b/;
+// Not req.files: an upload's path is the server's temp file, not something the user picked.
+const JS_INPUT = /\b(req|request)\.(body|query|params|headers|cookies)\b|\bctx\.(request\.body|query|params)\b|\bsearchParams\.get\(|\bevent\.(body|queryStringParameters|pathParameters)\b|\bformData\.get\(/;
+const PY_INPUT = /\brequest\.(args|form|json|values|data|GET|POST|query_params|path_params|cookies|headers|get_json\(\))\b/;
 
 const PASSTHROUGH = /^(path\.(join|resolve|normalize)|os\.path\.join|String|str|decodeURIComponent|decodeURI|unquote|parseInt|int|Number|URL|new URL)$|\.(trim|toString|toLowerCase|toUpperCase|replace|strip|lower|format|join)$/;
 // Reading from the request: request.args.get("next"), url.searchParams.get("q"), await request.json().
