@@ -33,7 +33,7 @@ async function isFolder(path: string): Promise<boolean> {
   try {
     return (await stat(path)).isDirectory();
   } catch {
-    return false;
+    return false; // stat fails when the path doesn't exist: that's the answer, not an error
   }
 }
 

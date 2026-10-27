@@ -58,12 +58,9 @@ export function valueReferences(root: Node, syntax: Syntax): Set<string> {
 // The parts of a FunctionInfo that every language fills in the same way.
 export function commonInfo(
   node: Node,
-  name: string,
-  file: string,
-  language: LanguageId,
-  syntax: Syntax,
-  params: string[],
-  valueRefs: Set<string>,
+  { name, file, language, syntax, params, valueRefs }: {
+    name: string; file: string; language: LanguageId; syntax: Syntax; params: string[]; valueRefs: Set<string>;
+  },
 ) {
   const body = node.childForFieldName("body") ?? node;
   const used = namesIn(body);

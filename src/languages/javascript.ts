@@ -29,30 +29,28 @@ function paramsOf(node: Node): string[] {
     .map((p) => (p.childForFieldName("pattern") ?? p.childForFieldName("left") ?? p).text);
 }
 
-// Names exported via `export { a, b }`, `export default a`, `module.exports = { a }` or `exports.a = ...`.
+// CommonJS: `module.exports = { a, b: c }`, `module.exports = a` or `exports.a = ...`.
+function commonJsExports(assignment: Node): string[] {
+  const left = assignment.childForFieldName("left")?.text ?? "";
+  const right = assignment.childForFieldName("right");
+  if (left === "module.exports" && right?.type === "object") {
+    return right.namedChildren
+      .map((prop) => (prop.type === "shorthand_property_identifier" ? prop : prop.childForFieldName("key"))?.text)
+      .filter((key): key is string => !!key);
+  }
+  if (left === "module.exports" && right?.type === "identifier") return [right.text];
+  const named = /^(?:module\.)?exports\.(\w+)$/.exec(left)?.[1];
+  return named ? [named] : [];
+}
+
+// Names exported via `export { a, b }`, `export default a`, or CommonJS.
 function exportedNames(root: Node): Set<string> {
   const names = new Set<string>();
   for (const node of descendants(root)) {
-    if (node.type === "export_specifier") {
-      names.add(node.childForFieldName("name")?.text ?? node.text);
-    } else if (node.type === "export_statement") {
-      const value = node.childForFieldName("value");
-      if (value?.type === "identifier") names.add(value.text);
-    } else if (node.type === "assignment_expression") {
-      const left = node.childForFieldName("left")?.text ?? "";
-      const right = node.childForFieldName("right");
-      if (left === "module.exports" && right?.type === "object") {
-        for (const prop of right.namedChildren) {
-          const key = prop.type === "shorthand_property_identifier" ? prop : prop.childForFieldName("key");
-          if (key) names.add(key.text);
-        }
-      } else if (left === "module.exports" && right?.type === "identifier") {
-        names.add(right.text);
-      } else {
-        const m = /^(?:module\.)?exports\.(\w+)$/.exec(left);
-        if (m?.[1]) names.add(m[1]);
-      }
-    }
+    if (node.type === "export_specifier") names.add(node.childForFieldName("name")?.text ?? node.text);
+    const value = node.type === "export_statement" ? node.childForFieldName("value") : null;
+    if (value?.type === "identifier") names.add(value.text);
+    if (node.type === "assignment_expression") for (const name of commonJsExports(node)) names.add(name);
   }
   return names;
 }
@@ -120,7 +118,7 @@ export const javascript: LanguageSupport = {
       const exportNode = exportAncestor(node);
       const property = node.parent?.type === "pair" || (node.type === "method_definition" && !className);
       found.push({
-        ...commonInfo(node, name, file, id, syntax, paramsOf(node), valueRefs),
+        ...commonInfo(node, { name, file, language: id, syntax, params: paramsOf(node), valueRefs }),
         className,
         kind: className ? "method" : property ? "property" : "function",
         decorated: false,

@@ -52,7 +52,7 @@ export const python: LanguageSupport = {
       const decorated = node.parent?.type === "decorated_definition";
       const holder = decorated ? node.parent?.parent : node.parent;
       found.push({
-        ...commonInfo(node, name, file, id, syntax, paramsOf(node), valueRefs),
+        ...commonInfo(node, { name, file, language: id, syntax, params: paramsOf(node), valueRefs }),
         className,
         kind: className ? "method" : "function",
         decorated,
