@@ -1,5 +1,6 @@
 import type { FunctionInfo } from "../index/functions.ts";
-import type { Confidence, DuplicateGroup } from "../rules/codebase/duplicates.ts";
+import type { DuplicateGroup } from "../rules/codebase/duplicates.ts";
+import type { Confidence } from "../rules/confidence.ts";
 
 const ADVICE: Record<DuplicateGroup["kind"], Partial<Record<Confidence, string>>> = {
   exact: { sure: "Keep one, import it everywhere else." },

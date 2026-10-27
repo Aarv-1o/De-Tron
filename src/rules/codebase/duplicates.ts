@@ -1,7 +1,6 @@
 import type { FunctionInfo } from "../../index/functions.ts";
 import { JSX_MARKER, LITERAL_PREFIX } from "../../index/shape.ts";
-
-export type Confidence = "sure" | "likely" | "maybe";
+import type { Confidence } from "../confidence.ts";
 
 export interface DuplicateGroup {
   kind: "exact" | "similar" | "cross-language";
