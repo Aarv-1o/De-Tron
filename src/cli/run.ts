@@ -91,7 +91,7 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
     out(`Not checked: ${list} file${total > 1 ? "s" : ""} (not supported yet). Results only cover the files above.\n`);
   }
   out("\n");
-  out(formatDuplicates(groups, all, differences));
+  out(formatDuplicates(groups, all, differences, deadFiles));
   out(`\n${formatDeadCode(dead, all)}`);
   out(`\n${formatHygiene(liveHygiene, all)}`);
   if (index.filesWithSyntaxErrors.length) {

@@ -18,12 +18,18 @@ test("text report: sure copies with locations, evidence and advice; hints hidden
   assert.match(text, /a\.ts:3 {2}timeAgo/);
   assert.match(text, /Same wording: "just now", "m ago"/);
   assert.match(text, /→ Keep one, import it everywhere else\./);
-  assert.match(text, /1 more hints hidden/);
+  assert.match(text, /1 more hint hidden/);
   assert.doesNotMatch(text, /fetchClients/);
 });
 
 test("text report: --all shows hints", () => {
   assert.match(formatDuplicates(groups, true), /Hints \(1\)[\s\S]*fetchClients/);
+});
+
+test("text report: copies in unused files are marked; only-hints says so", () => {
+  const text = formatDuplicates([groups[0]!], false, new Map(), new Set(["b.ts"]));
+  assert.match(text, /b\.ts:8 {2}fileTimeAgo {2}\(in a file that looks unused\)/);
+  assert.equal(formatDuplicates([groups[1]!], false), "No copies found (1 more hint hidden. Run with --all to see them).\n");
 });
 
 test("text report: says so when there is nothing", () => {

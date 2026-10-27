@@ -18,7 +18,7 @@ test("hygiene report: grouped by rule, one shared message, safe-to-fix marks, hi
   assert.match(text, /Errors only logged \(2\)\n {5}a\.tsx:3\n {5}b\.tsx:9\n {5}→ Error is only logged: the user never finds out it failed\./);
   assert.match(text, /c\.js:4 {2}\(safe to fix\)\n {5}→ extract: id is never used\./);
   assert.match(text, /d\.js:1 {2}run: 6 levels deep/);
-  assert.match(text, /1 more hints hidden/);
+  assert.match(text, /1 more hint hidden/);
   assert.doesNotMatch(text, /Long parameter lists/);
   assert.match(formatHygiene([], false), /No code hygiene issues found/);
 });

@@ -2,6 +2,7 @@ import type { FunctionInfo } from "../index/functions.ts";
 import type { CopyDifferences, LineChange } from "../rules/codebase/differences.ts";
 import type { DuplicateGroup } from "../rules/codebase/duplicates.ts";
 import type { Confidence } from "../rules/confidence.ts";
+import { hiddenNote, nothingFound } from "./common.ts";
 
 const ADVICE: Record<DuplicateGroup["kind"], Partial<Record<Confidence, string>>> = {
   exact: { sure: "Keep one, import it everywhere else." },
@@ -76,8 +77,10 @@ export function formatDuplicates(
   groups: DuplicateGroup[],
   showHints: boolean,
   differences: Map<DuplicateGroup, CopyDifferences> = new Map(),
+  unusedFiles: Set<string> = new Set(),
 ): string {
   const lines: string[] = [];
+  let hidden = 0;
   // A drifted group often contains an exact group too: point back to it instead of hiding either.
   const sureNumber = new Map<FunctionInfo, number>();
   groups.filter((g) => g.confidence === "sure").forEach((g, i) => g.functions.forEach((f) => sureNumber.set(f, i + 1)));
@@ -85,7 +88,7 @@ export function formatDuplicates(
     const inLevel = groups.filter((g) => g.confidence === level);
     if (!inLevel.length) continue;
     if (level === "maybe" && !showHints) {
-      lines.push(`${inLevel.length} more hints hidden. Run with --all to see them.`, "");
+      hidden = inLevel.length;
       continue;
     }
     lines.push(`${HEADINGS[level]} (${inLevel.length})`, "");
@@ -93,7 +96,8 @@ export function formatDuplicates(
       lines.push(`  ${i + 1}. ${title(group)}`);
       for (const fn of group.functions) {
         const seeAlso = level !== "sure" && sureNumber.has(fn) ? `  (see Copies #${sureNumber.get(fn)})` : "";
-        lines.push(`     ${location(fn)}${seeAlso}`);
+        const unused = unusedFiles.has(fn.file) ? "  (in a file that looks unused)" : "";
+        lines.push(`     ${location(fn)}${seeAlso}${unused}`);
       }
       if (group.sharedValues.length) lines.push(`     Same wording: ${group.sharedValues.slice(0, 3).map(quote).join(", ")}`);
       if (group.kind === "exact" && new Set(group.functions.map((f) => f.name)).size > 1) {
@@ -104,7 +108,9 @@ export function formatDuplicates(
       lines.push(`     → ${ADVICE[group.kind][level] ?? ""}`, "");
     });
   }
-  return lines.length ? lines.join("\n") : "No copies found.\n";
+  if (!lines.length) return nothingFound("copies", hidden);
+  if (hidden) lines.push(hiddenNote(hidden), "");
+  return lines.join("\n");
 }
 
 const where = ({ name, file, startLine, endLine, language }: FunctionInfo) => ({ name, file, startLine, endLine, language });

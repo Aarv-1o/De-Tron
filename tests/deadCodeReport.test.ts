@@ -33,7 +33,7 @@ test("dead code report: sizes, uninstall commands, safe-to-remove marks", () => 
 test("dead code report: hides hints, and doesn't repeat functions from dead files", () => {
   const text = formatDeadCode(found, false);
   assert.doesNotMatch(text, /try\.py/);
-  assert.match(text, /1 more hints hidden/);
+  assert.match(text, /1 more hint hidden/);
   assert.doesNotMatch(text, /helper/);
   assert.match(formatDeadCode(found, true), /try\.py/);
 });

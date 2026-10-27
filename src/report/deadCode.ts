@@ -2,6 +2,7 @@ import { posix } from "node:path";
 import type { DeadFunction } from "../rules/codebase/deadFunctions.ts";
 import type { UnusedFile } from "../rules/codebase/unusedFiles.ts";
 import type { UnusedPackage } from "../rules/codebase/unusedPackages.ts";
+import { hiddenNote, nothingFound } from "./common.ts";
 
 export interface DeadCode {
   packages: UnusedPackage[];
@@ -61,8 +62,9 @@ export function formatDeadCode(found: DeadCode, showHints: boolean): string {
     found.functions.filter((d) => !deadFiles.has(d.fn.file)).length - functions.length;
 
   const lines = [...packagesSection(packages), ...filesSection(files), ...functionsSection(functions)];
-  if (hidden) lines.push(`  ${hidden} more hints hidden. Run with --all to see them.`, "");
-  return lines.length ? `Dead code\n\n${lines.join("\n")}` : "No dead code found.\n";
+  if (!lines.length) return nothingFound("dead code", hidden);
+  if (hidden) lines.push(`  ${hiddenNote(hidden)}`, "");
+  return `Dead code\n\n${lines.join("\n")}`;
 }
 
 export function deadCodeToJson(found: DeadCode) {
