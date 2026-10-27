@@ -178,3 +178,18 @@ Dogfooding: the self-scan flagged the route reader's second copy of the Python i
 walk (fixed by recording bindings in the import reader), a 5-level function and two
 5-parameter functions. It also flagged two comments that showed example code
 (`// xhr.open("POST", url)`) as commented-out code: a false alarm worth remembering.
+
+## Hotspots v1 results (Oct 2026)
+
+Changes per file (git log, merges left out) × total indentation in the file's own indent
+step. Text inside multi-line strings doesn't count: Travscape's `prompts.py` ranked #1 on
+prompt text alone, and dropped out once strings were skipped.
+
+- Escrows-AI (47 commits): #1 `InboxPage.tsx` (12 changes, 2,149 lines, 19 findings),
+  #2 `InventoryPage.tsx` (7, 1,123, 12). Same #1 as the baseline hand check.
+- Travscape (22 commits): `agents/utils.py`, then `agents/orchestrator.py`.
+- Detron itself: `src/cli/run.ts` was #2, because every new check changed it. Split into
+  running the checks and printing them; now #6.
+
+The ranking is relative, so every repo has a #1. It says where to start, not that a file
+is bad. Under 10 commits, it's skipped.
