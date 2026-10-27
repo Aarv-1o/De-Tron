@@ -66,12 +66,16 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
 
   const skipped = unsupportedCode(index.allFiles);
 
+  // Issues inside a file that's dead as a whole are noise: the fix is deleting the file.
+  const deadFiles = new Set(dead.files.map((f) => f.file));
+  const liveHygiene = hygiene.filter((f) => !deadFiles.has(f.file));
+
   if (json) {
     const report = {
       root, files: index.files.length, functions: index.functions.length,
       skippedFiles: Object.fromEntries(skipped),
       filesWithSyntaxErrors: index.filesWithSyntaxErrors,
-      duplicates: duplicatesToJson(groups, differences), deadCode: deadCodeToJson(dead), hygiene,
+      duplicates: duplicatesToJson(groups, differences), deadCode: deadCodeToJson(dead), hygiene: liveHygiene,
     };
     out(`${JSON.stringify(report, null, 2)}\n`);
     return 0;
@@ -86,7 +90,7 @@ async function scan(path: string, all: boolean, json: boolean, out: Write): Prom
   out("\n");
   out(formatDuplicates(groups, all, differences));
   out(`\n${formatDeadCode(dead, all)}`);
-  out(`\n${formatHygiene(hygiene, all)}`);
+  out(`\n${formatHygiene(liveHygiene, all)}`);
   if (index.filesWithSyntaxErrors.length) {
     out(`\nNote: ${index.filesWithSyntaxErrors.length} file(s) have syntax Detron couldn't fully read, so results there may be incomplete:\n`);
     for (const f of index.filesWithSyntaxErrors) out(`  ${f}\n`);

@@ -109,6 +109,10 @@ const authLimiter = rateLimit({});
 start();
 // Load the client list
 function loadClientList() {}
+/* ΓöÇΓöÇΓöÇ Arrow Icon ΓöÇΓöÇΓöÇ */
+const ArrowIcon = () => null;
+// cancelled / expired → ended: revert to the free plan
+const ENDED = ["cancelled", "expired"];
 `, "comment-repeats-code"), ["2 comment-repeats-code likely", "4 comment-repeats-code likely"]);
 });
 

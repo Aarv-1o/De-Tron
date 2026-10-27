@@ -5,12 +5,13 @@ import { lineOf, walk, type FileContext, type LineFinding } from "./types.ts";
 // Tool directives and notes look like code but are meant to stay.
 const DIRECTIVE = /^(eslint|@ts-|ts-|noqa|type:|pylint|prettier|istanbul|c8|fmt:|TODO|FIXME|NOTE|HACK|XXX|!|-\*-)/i;
 // A comment that explains why isn't repeating the code, even if it shares its words.
-const EXPLAINS_WHY = /\b(because|why|note|hack|workaround|must|don't|do not|avoid|otherwise|ensure|since|so that|unless|careful|important|instead)\b/i;
+const EXPLAINS_WHY = /\b(because|why|note|hack|workaround|must|don't|do not|avoid|otherwise|ensure|since|so that|unless|careful|important|instead)\b|→|=>/i;
 // A comment above a function or class documents what it does: that's an interface comment, not noise.
 const DEFINITION = /^(export\s+(default\s+)?)?(async\s+)?(function\b|def\b|class\b)/;
 
 // Section headers (// ─── Rate Limiting ───) are for finding your way in a long file.
-const DIVIDER = /[─━═]|[-=*#]{3,}/;
+// Also catches dividers whose box characters got mangled by a wrong encoding ("ΓöÇΓöÇΓöÇ").
+const DIVIDER = /[─━═]|[-=*#]{3,}|(\S{2,3})\1\1/;
 const STOPWORDS = new Set("the a an to of and or for in on is it this that with be by as from at we our if then into set get new use".split(" "));
 
 const words = (text: string) => (text.match(/[A-Za-z]{3,}/g) ?? []).map((w) => w.toLowerCase()).filter((w) => !STOPWORDS.has(w));
