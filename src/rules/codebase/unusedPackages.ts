@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { builtinModules } from "node:module";
 import { join, posix } from "node:path";
 import type { RepoIndex } from "../../index/repo.ts";
+import { readTexts } from "../../index/texts.ts";
 import type { Confidence } from "../confidence.ts";
 
 export interface UnusedPackage {
@@ -78,8 +79,7 @@ export async function findUnusedPackages(index: RepoIndex): Promise<UnusedPackag
         if (pkg) imported.add(pkg);
       }
     }
-    const textOf = async (files: string[]) =>
-      (await Promise.all(files.map((f) => readFile(join(index.root, f), "utf8").catch(() => "")))).join("\n");
+    const textOf = async (files: string[]) => [...(await readTexts(index.root, files)).values()].join("\n");
     const configText = await textOf(index.allFiles.filter((f) => inScope(f) && CONFIG_FILE.test(f) && !NOT_REFERENCES.test(f)));
     // Names built at runtime, e.g. require.resolve(WASM_FILES[lang]), still appear as quoted strings.
     const sourceText = await textOf(index.files.filter(inScope));

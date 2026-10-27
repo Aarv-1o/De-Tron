@@ -12,6 +12,10 @@ const SKIP_DIRS = new Set([
   "__pycache__", ".venv", "venv", "env", ".mypy_cache", ".pytest_cache",
 ]);
 
+// Repeated setup and unused helpers are normal in tests, so most checks skip them.
+const TEST_FILE = /(^|\/)(__tests__|tests?|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^/]*\.py$|_test\.py$/;
+export const isTestFile = (path: string) => TEST_FILE.test(path);
+
 export function isSource(path: string): boolean {
   // Minified bundles are generated, not written by anyone.
   return detectLanguage(path) !== undefined && !/\.min\.(js|mjs|cjs)$/i.test(path);
