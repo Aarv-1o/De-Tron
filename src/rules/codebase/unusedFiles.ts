@@ -2,6 +2,8 @@ import { posix } from "node:path";
 import { isTestFile } from "../../index/files.ts";
 import type { RepoIndex } from "../../index/repo.ts";
 import { escapeRegex, readTexts } from "../../index/texts.ts";
+import { supportFor } from "../../languages/index.ts";
+import { detectLanguage } from "../../parse/parse.ts";
 import type { Confidence } from "../confidence.ts";
 
 export interface UnusedFile {
@@ -23,10 +25,6 @@ const ENTRY = new RegExp(
 const ROUTING_FRAMEWORKS = ["next", "nuxt", "@remix-run/react", "@sveltejs/kit", "astro", "expo-router"];
 const ROUTED = /(^|\/)(pages|app|routes)\//;
 
-// Python files that run on their own: a main block, or a call at the top level (`demo.launch()`).
-const PY_MAIN = /__name__\s*==\s*["']__main__["']/;
-const PY_TOP_LEVEL_CALL = /^[A-Za-z_][\w.]*\(/m;
-const PY_WEB_APP = /^\w+\s*=\s*(FastAPI|Flask|Starlette|Quart|Sanic)\(/m;
 
 const stemOf = (file: string) => posix.basename(file).replace(/\.[^.]+$/, "");
 // An index file is imported by its folder name: "./components/Button" -> components/Button/index.tsx.
@@ -37,14 +35,9 @@ export async function findUnusedFiles(index: RepoIndex): Promise<UnusedFile[]> {
   const importers = new Map<string, Set<string>>();
   const note = (name: string, by: string) => importers.set(name, new Set([...(importers.get(name) ?? []), by]));
   for (const [file, usage] of index.usage) {
-    for (const imp of usage.imports) {
-      // "./util.js" -> util (TS ESM imports .ts files as .js); "agents.planner" -> planner
-      const last = imp.source.includes("/")
-        ? posix.basename(imp.source.replace(/\/+$/, "")).replace(/\.[cm]?[jt]sx?$/, "") // keeps auth.service
-        : imp.source.split(".").filter(Boolean).pop();
-      if (last) note(last, file);
-      if (imp.source.startsWith(".") || !imp.source.includes("/")) for (const n of imp.names) note(n, file); // from . import x
-    }
+    const language = detectLanguage(file);
+    if (!language) continue;
+    for (const imp of usage.imports) for (const name of supportFor(language).importedModules(imp)) note(name, file);
   }
 
   const texts = await readTexts(index.root, index.allFiles);
@@ -74,9 +67,11 @@ export async function findUnusedFiles(index: RepoIndex): Promise<UnusedFile[]> {
     if (mentionedElsewhere(file)) continue;
     const text = texts.get(file) ?? "";
     const lines = text.split("\n").length;
-    if (file.endsWith(".py") && PY_WEB_APP.test(text)) continue; // served by uvicorn/flask/gunicorn
+    const language = detectLanguage(file);
+    const entry = language ? supportFor(language).entryKind(text) : undefined;
+    if (entry === "app") continue; // a web server, started by uvicorn/flask/gunicorn
     // A runnable script may be run by hand, but agents leave a lot of one-off experiment scripts behind.
-    if (file.endsWith(".py") && (PY_MAIN.test(text) || PY_TOP_LEVEL_CALL.test(text))) {
+    if (entry === "script") {
       unused.push({ file, lines, confidence: "maybe", reason: "A runnable script nothing refers to. Still needed?" });
     } else {
       unused.push({ file, lines, confidence: "likely", reason: "Nothing imports or mentions this file." });

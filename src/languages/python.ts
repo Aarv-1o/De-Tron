@@ -1,0 +1,86 @@
+import type { Node } from "web-tree-sitter";
+import type { FunctionInfo } from "../index/functions.ts";
+import type { ImportInfo } from "../index/usage.ts";
+import { commonInfo, descendants, enclosingClass } from "./nodes.ts";
+import type { LanguageSupport } from "./types.ts";
+
+function paramsOf(node: Node): string[] {
+  const params = node.childForFieldName("parameters");
+  if (!params) return [];
+  // keyword_separator is the bare `*`, positional_separator the bare `/`: markers, not params.
+  return params.namedChildren
+    .filter((p) => !["comment", "keyword_separator", "positional_separator"].includes(p.type))
+    .map((p) => {
+      if (p.type === "identifier" || p.type.endsWith("splat_pattern")) return p.text; // keeps *args, **kwargs
+      return (p.childForFieldName("name") ?? p.namedChildren[0] ?? p).text;
+    });
+}
+
+const MAIN_BLOCK = /__name__\s*==\s*["']__main__["']/;
+const TOP_LEVEL_CALL = /^[A-Za-z_][\w.]*\(/m; // e.g. demo.launch() or main()
+const WEB_APP = /^\w+\s*=\s*(FastAPI|Flask|Starlette|Quart|Sanic)\(/m;
+
+export const python: LanguageSupport = {
+  family: "python",
+  label: "Python",
+  grammars: { ".py": { id: "python", wasm: "tree-sitter-python/tree-sitter-python.wasm" } },
+
+  extractFunctions(root, file, id) {
+    const found: FunctionInfo[] = [];
+    for (const node of descendants(root)) {
+      if (node.type !== "function_definition") continue;
+      const name = node.childForFieldName("name")?.text;
+      if (!name) continue;
+      const className = enclosingClass(node, "class_definition");
+      // Compare by type: web-tree-sitter hands out a new Node object on every access.
+      const decorated = node.parent?.type === "decorated_definition";
+      const holder = decorated ? node.parent?.parent : node.parent;
+      found.push({
+        ...commonInfo(node, name, file, id),
+        params: paramsOf(node),
+        className,
+        kind: className ? "method" : "function",
+        decorated,
+        defaultExport: false,
+        exported: holder?.type === "module" && !name.startsWith("_"), // a public top-level name
+      });
+    }
+    return found;
+  },
+
+  extractImports(root) {
+    const found: ImportInfo[] = [];
+    for (const node of descendants(root)) {
+      const line = node.startPosition.row + 1;
+      if (node.type === "import_statement") {
+        // import a.b, c as d
+        for (const child of node.namedChildren) {
+          const name = child.type === "aliased_import" ? child.childForFieldName("name") : child;
+          if (name) found.push({ source: name.text, names: [], line });
+        }
+      } else if (node.type === "import_from_statement") {
+        // from .x import a, b as c
+        const module = node.childForFieldName("module_name");
+        if (!module) continue;
+        const names = node.childrenForFieldName("name").map((n) =>
+          (n.type === "aliased_import" ? n.childForFieldName("name") ?? n : n).text,
+        );
+        found.push({ source: module.text, names, line });
+      }
+    }
+    return found;
+  },
+
+  // "agents.planner" -> planner. Imported names may be modules too (`from . import chatbot`),
+  // so they count: better to miss a dead file than to call a used one dead.
+  importedModules(imp) {
+    const last = imp.source.split(".").filter(Boolean).pop();
+    return [...(last ? [last] : []), ...imp.names];
+  },
+
+  entryKind(text) {
+    if (WEB_APP.test(text)) return "app";
+    return MAIN_BLOCK.test(text) || TOP_LEVEL_CALL.test(text) ? "script" : undefined;
+  },
+  unusedExportReason: "Nothing uses it.",
+};

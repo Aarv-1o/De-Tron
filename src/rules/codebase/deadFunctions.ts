@@ -2,6 +2,7 @@ import { isSource, isTestFile } from "../../index/files.ts";
 import type { FunctionInfo } from "../../index/functions.ts";
 import type { RepoIndex } from "../../index/repo.ts";
 import { readTexts } from "../../index/texts.ts";
+import { supportFor } from "../../languages/index.ts";
 import type { Confidence } from "../confidence.ts";
 
 export interface DeadFunction {
@@ -47,7 +48,7 @@ export async function findDeadFunctions(index: RepoIndex): Promise<DeadFunction[
     if ((testUses.get(fn.name) ?? 0) > 0) {
       dead.push({ fn, confidence: "likely", reason: "Only tests use it. Delete it and its tests?" });
     } else if (fn.exported) {
-      dead.push({ fn, confidence: "likely", reason: fn.language === "python" ? "Nothing uses it." : "Exported, but nothing uses it." });
+      dead.push({ fn, confidence: "likely", reason: supportFor(fn.language).unusedExportReason });
     } else {
       dead.push({ fn, confidence: "sure", reason: "Nothing uses it." });
     }
