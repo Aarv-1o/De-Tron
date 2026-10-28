@@ -165,6 +165,8 @@ export function startServer(connection: Connection): void {
   // For the editor's sidebar: the list, a whole report, one finding's full explanation.
   connection.onRequest("detron/findings", () => ({
     show: options.show, hints: options.hints, older: older(),
+    // Why "your changes" is everything, if it is: "not a git repo", "no commits yet".
+    ...(changes.ok ? {} : { noChanges: changes.reason }),
     items: shown().map((f) => ({ id: f.id, rule: f.rule, part: partOf(f), severity: severityOf(f), file: f.file, line: f.line, title: f.title, why: f.why, does: f.plain?.does, replacedBy: f.plain?.replacedBy })),
   }));
   connection.onRequest("detron/report", ({ format }: { format: "agent" | "person" }) =>
