@@ -50,7 +50,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("detron.rescan", () => run("detron.server.rescan")),
   );
   const sidebar = new Sidebar(context.extensionUri, () => client);
-  context.subscriptions.push(vscode.window.registerWebviewViewProvider("detron.panel", sidebar));
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider("detron.panel", sidebar),
+    vscode.commands.registerCommand("detron.openReport", () => sidebar.run("openReport")),
+    vscode.commands.registerCommand("detron.copyReport", () => sidebar.run("copyReport")),
+  );
   client.onNotification("detron/status", (s: Status) => {
     [bar.text, bar.tooltip] = statusText(s);
     void sidebar.update(s);

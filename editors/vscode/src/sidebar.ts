@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import type { LanguageClient } from "vscode-languageclient/node";
 
@@ -26,7 +27,8 @@ export class Sidebar implements vscode.WebviewViewProvider {
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
     view.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.extension, "media")] };
-    const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    // Unguessable, or a script injected into the page could carry it (Math.random() can be predicted).
+    const nonce = randomBytes(16).toString("base64");
     const script = view.webview.asWebviewUri(vscode.Uri.joinPath(this.extension, "media", "sidebar.js"));
     const style = view.webview.asWebviewUri(vscode.Uri.joinPath(this.extension, "media", "sidebar.css"));
     view.webview.html = `<!doctype html><html><head><meta charset="utf-8">
@@ -41,6 +43,9 @@ export class Sidebar implements vscode.WebviewViewProvider {
     void this.view.webview.postMessage({ type: "status", status });
     if (!status.scanning && !status.error) void this.view.webview.postMessage({ type: "findings", data: await this.client()?.sendRequest("detron/findings", {}) });
   }
+
+  // The panel's title-bar buttons run these too.
+  readonly run = (type: FromPanel["type"]) => this.handle({ type } as FromPanel);
 
   private async handle(m: FromPanel): Promise<void> {
     const client = this.client();

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.4
+
+- A cleaner sidebar: counts at a glance, file name first, Copy fix on hover, empty groups folded into one line, Scan again / Full report / Copy report in the panel's title bar.
+- Says when it can't tell what changed (the open folder isn't a git repo).
+- The panel's script nonce comes from crypto, not Math.random() (found by Detron).
+
 ## 0.0.3
 
 - Fix: the extension stopped at startup ("command 'detron.toggleShow' already exists"). The server's commands are now detron.server.*.

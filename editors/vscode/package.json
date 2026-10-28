@@ -2,7 +2,7 @@
   "name": "detron",
   "displayName": "Detron",
   "description": "Finds the mess AI coding agents leave: security holes, crash risks, broken frontend/backend calls, copied and dead code. Explained in plain words, right in the editor.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "publisher": "detron",
   "license": "MIT",
   "author": {
@@ -31,11 +31,22 @@
       },
       {
         "command": "detron.rescan",
-        "title": "Detron: Check again"
+        "title": "Detron: Scan again",
+        "icon": "$(refresh)"
       },
       {
         "command": "detron.toggleHints",
         "title": "Detron: Show or hide hints"
+      },
+      {
+        "command": "detron.openReport",
+        "title": "Detron: Open the full report",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "detron.copyReport",
+        "title": "Detron: Copy the report for an agent",
+        "icon": "$(copy)"
       }
     ],
     "configuration": {
@@ -84,6 +95,25 @@
           "type": "webview",
           "id": "detron.panel",
           "name": "Findings"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "detron.rescan",
+          "when": "view == detron.panel",
+          "group": "navigation@1"
+        },
+        {
+          "command": "detron.openReport",
+          "when": "view == detron.panel",
+          "group": "navigation@2"
+        },
+        {
+          "command": "detron.copyReport",
+          "when": "view == detron.panel",
+          "group": "navigation@3"
         }
       ]
     }
