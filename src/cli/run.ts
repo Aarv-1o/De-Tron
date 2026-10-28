@@ -7,6 +7,9 @@ import { formatForAgent, formatForPerson } from "../report/brief.ts";
 import { explainFindings, findingsOn } from "../report/explain.ts";
 import { changedLines, isInChanges } from "../scan/changes.ts";
 import { formatScan, scanToJson } from "../report/scan.ts";
+import type { HookInput } from "../agent/hooks.ts";
+import { hookReply } from "../daemon/client.ts";
+import { serve } from "../daemon/server.ts";
 import { runLanguageServer } from "../lsp/server.ts";
 import { scanRepo } from "../scan/scan.ts";
 
@@ -18,6 +21,9 @@ Usage:
                               to clean first (default: current folder)
   detron lsp                  Run as a language server, for editors (VS Code, Cursor,
                               Windsurf, Antigravity, JetBrains, Zed, Neovim)
+  detron hook claude          Run as an agent hook: reads the hook's JSON on stdin, answers
+                              in Claude Code's format (Cursor and Copilot CLI read it too)
+  detron serve [path]         The background Detron that hooks talk to (started for you)
   detron explain <file:line>  Everything about the findings on one line: what the code
                               does, why it matters, how to fix it, how to check
 
@@ -74,6 +80,31 @@ async function scan(path: string, { all, format, changed, base }: ScanOptions, o
   return 0;
 }
 
+async function readStdin(): Promise<string> {
+  let text = "";
+  for await (const chunk of process.stdin) text += chunk;
+  return text;
+}
+
+// An agent hook. Detron failing must not break the agent: exit 1 shows the error to the person
+// without blocking the agent (exit 2 would block).
+async function hook(agent: string | undefined, out: Write): Promise<number> {
+  if (agent !== "claude") {
+    process.stderr.write(`detron hook: unknown agent "${agent ?? ""}". Supported: claude.\n`);
+    return 1;
+  }
+  try {
+    const input = JSON.parse(await readStdin()) as HookInput;
+    const root = resolve(process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? ".");
+    const reply = await hookReply(root, input);
+    out(reply.stdout);
+    return reply.exitCode;
+  } catch (error) {
+    process.stderr.write(`Detron hook failed: ${(error as Error).message}\n`);
+    return 1;
+  }
+}
+
 // detron explain src/routes/orders.js:9
 async function explain(target: string, out: Write): Promise<number> {
   const m = /^(.+):(\d+)$/.exec(target);
@@ -95,6 +126,11 @@ export async function run(argv: string[], out: Write): Promise<number> {
   if (argv[0] === "lsp") {
     runLanguageServer(); // keeps running until the editor closes it
     return 0;
+  }
+  if (argv[0] === "hook") return hook(argv[1], out);
+  if (argv[0] === "serve") {
+    await serve(resolve(argv[1] ?? "."));
+    return 0; // the server keeps the process alive until it goes idle
   }
   let parsed;
   try {
