@@ -2,9 +2,9 @@ import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { collectFindings } from "../findings/collect.ts";
-import type { Finding } from "../findings/types.ts";
 import { formatAgent } from "../report/agent.ts";
 import { formatForAgent, formatForPerson } from "../report/brief.ts";
+import { explainFindings, findingsOn } from "../report/explain.ts";
 import { changedLines, isInChanges } from "../scan/changes.ts";
 import { formatScan, scanToJson } from "../report/scan.ts";
 import { scanRepo } from "../scan/scan.ts";
@@ -80,14 +80,8 @@ async function explain(target: string, out: Write): Promise<number> {
   }
   const [file, line] = [m[1]!.replace(/\\/g, "/").replace(/^\.\//, ""), Number(m[2])];
   const root = resolve(".");
-  const findings = await collectFindings(await scanRepo(root));
-  const here = findings.filter((f: Finding) => f.file === file && f.line <= line && line <= (f.endLine ?? f.line));
-  if (!here.length) {
-    out(`No findings on ${file}:${line}.\n`);
-    return 0;
-  }
-  const plain = here.flatMap((f) => [f.plain?.does, f.plain?.replacedBy]).filter((t): t is string => !!t);
-  out(`${[...new Set(plain)].map((t) => `${t}\n`).join("")}${plain.length ? "\n" : ""}${formatAgent(root, here, true)}`);
+  const here = findingsOn(await collectFindings(await scanRepo(root)), file, line);
+  out(here.length ? explainFindings(root, here) : `No findings on ${file}:${line}.\n`);
   return 0;
 }
 
