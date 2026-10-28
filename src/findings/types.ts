@@ -27,4 +27,7 @@ export interface Finding {
   // warning: not a task (a hotspot): how to work in this file.
   safety: "safe" | "ask-first" | "warning";
   verify: string; // how to know the fix worked
+  // The code it's about, in plain words, built from the code itself: what it does, and for
+  // unused code, what probably replaced it.
+  plain?: { does?: string; replacedBy?: string };
 }

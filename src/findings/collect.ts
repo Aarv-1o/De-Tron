@@ -6,6 +6,7 @@ import type { LineChange } from "../rules/codebase/differences.ts";
 import type { LineFinding } from "../rules/line/types.ts";
 import type { ScanResult } from "../scan/scan.ts";
 import { GUIDES } from "./guide.ts";
+import { describe, likelyReplacement, type Candidate } from "./plain.ts";
 import type { Finding, Place } from "./types.ts";
 
 // Every check's results as Findings, with the evidence an agent needs: the parameter names,
@@ -132,9 +133,33 @@ function hotspotFindings(r: ScanResult, findingsIn: (file: string) => number): F
   });
 }
 
+// Findings about a whole file or app: no one function to explain.
+const FILE_LEVEL = new Set(["unused-file", "unused-package", "env-file-in-repo", "hotspot", "no-auth-at-all"]);
+
+// Each finding gets the code it's about in plain words: the innermost function around its line.
+function addPlain(findings: Finding[], r: ScanResult): void {
+  const byFile = new Map<string, typeof r.facts>();
+  for (const f of r.facts) byFile.set(f.file, [...(byFile.get(f.file) ?? []), f]);
+  const uses = new Map<string, number>();
+  for (const usage of r.index.usage.values()) for (const [name, n] of usage.names) uses.set(name, (uses.get(name) ?? 0) + n);
+  for (const fn of r.facts) if (fn.name) uses.set(fn.name, (uses.get(fn.name) ?? 0) - 1); // its own definition
+  const deadAt = new Set(r.dead.functions.map((d) => `${d.fn.file}:${d.fn.startLine}`));
+  const candidates: Candidate[] = r.facts.filter((f) => f.name && !deadAt.has(`${f.file}:${f.startLine}`)).map((facts) => ({ facts, uses: Math.max(0, uses.get(facts.name!) ?? 0) }));
+  for (const finding of findings) {
+    if (FILE_LEVEL.has(finding.rule)) continue;
+    const around = (byFile.get(finding.file) ?? []).filter((f) => f.startLine <= finding.line && finding.line <= f.endLine)
+      .sort((a, b) => a.endLine - a.startLine - (b.endLine - b.startLine))[0];
+    if (!around) continue;
+    const does = describe(around);
+    const replacedBy = finding.rule === "dead-function" ? likelyReplacement(around, candidates) : undefined;
+    if (does || replacedBy) finding.plain = { ...(does ? { does } : {}), ...(replacedBy ? { replacedBy } : {}) };
+  }
+}
+
 export async function collectFindings(r: ScanResult): Promise<Finding[]> {
   const texts = await readTexts(r.root, r.index.files);
   const findings = [...copyFindings(r), ...deadCodeFindings(r), ...crossStackFindings(r), ...hygieneFindings(r, texts)];
+  addPlain(findings, r);
   const findingsIn = (file: string) => findings.filter((f) => f.file === file && f.confidence !== "maybe").length;
   return [...findings, ...hotspotFindings(r, findingsIn)];
 }

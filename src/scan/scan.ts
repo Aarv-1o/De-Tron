@@ -1,3 +1,4 @@
+import { functionFacts, type FunctionFacts } from "../index/facts.ts";
 import { unsupportedCode } from "../index/files.ts";
 import { buildIndex, type RepoIndex } from "../index/repo.ts";
 import { extractUsage } from "../index/usage.ts";
@@ -25,6 +26,7 @@ import { readTexts } from "../index/texts.ts";
 export interface ScanResult {
   root: string;
   index: RepoIndex;
+  facts: FunctionFacts[]; // what each function does, for plain-language explanations
   skipped: Map<string, number>; // files in languages Detron doesn't read yet, by extension
   groups: DuplicateGroup[];
   differences: Map<DuplicateGroup, CopyDifferences>;
@@ -48,10 +50,12 @@ export async function scanRepo(root: string): Promise<ScanResult> {
   const lineFindings: LineFinding[] = [];
   const apis = new Map<string, FileApi>();
   const sizes = new Map<string, FileSize>();
+  const facts: FunctionFacts[] = [];
   const index = await buildIndex(root, {
     onFile: async (parsed, file) => {
       const imports = extractUsage(parsed).imports.map((i) => i.source);
       lineFindings.push(...(await runLineRules(parsed, file, imports)));
+      facts.push(...functionFacts(parsed, file));
       apis.set(file, supportFor(parsed.language).extractApi(parsed.tree.rootNode, file));
       // The file as written: an Astro template's nesting is complexity too.
       sizes.set(file, indentComplexity(parsed.original ?? parsed.source, stringRows(parsed.tree.rootNode)));
@@ -104,7 +108,7 @@ export async function scanRepo(root: string): Promise<ScanResult> {
   const keep = (f: LineFinding) => !(f.rule === "async-handler-no-catch" && !express4) && !(f.rule === "plaintext-password" && hashes);
   const history = await gitHistory(root);
   return {
-    root, index, skipped: unsupportedCode(index.allFiles), groups, differences, dead, deadFiles, crossStack,
+    root, index, facts, skipped: unsupportedCode(index.allFiles), groups, differences, dead, deadFiles, crossStack,
     hygiene: live.filter((f) => !DATABASE_RULES.has(f.rule) && !SECURITY_RULES.has(f.rule) && !CRASH_RULES.has(f.rule)),
     database: live.filter((f) => DATABASE_RULES.has(f.rule)),
     hasDatabase: usesDatabase(imports.values(), index.allFiles),
