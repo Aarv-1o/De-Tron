@@ -42,9 +42,13 @@ const callName = (text: string) => {
 // A call that's part of a longer chain: User.findById() in User.findById().select().lean().
 const inChain = (call: Node) => !!call.parent && FIELDS.has(call.parent.type) && CALLS.has(call.parent.parent?.type ?? "");
 
-// What's returned, short: { id, name } for an object, <svg> for JSX, else the code.
+// A value, short: { id, name } for an object, <svg> for JSX, "~HTML" or "~a text" for built
+// strings ("~": already words, not code), else the code.
 function returned(node: Node): string {
   const value = node.type === "parenthesized_expression" ? (node.namedChildren[0] ?? node) : node;
+  if (value.type === "template_string" || (value.type === "string" && value.namedChildren.some((c) => c.type === "interpolation"))) {
+    return /^[`f]?["'`]?\s*</.test(value.text) ? "~HTML" : "~a text";
+  }
   if (/^jsx_(element|self_closing_element|fragment)$/.test(value.type)) return `<${/^<\s*([\w.]*)/.exec(value.text)?.[1] ?? ""}>`;
   if (value.type === "object" || value.type === "dictionary") {
     const keys = value.namedChildren.map((c) => (c.childForFieldName("key") ?? (c.type.startsWith("shorthand") ? c : null))?.text.replace(/['"]/g, "")).filter(Boolean);
@@ -110,7 +114,8 @@ export function factsOf(fn: Node, file: string): FunctionFacts {
       if (name && name.length <= 40 && !NOISE_CALL.test(name) && !calls.includes(name)) calls.push(name);
     } else if (ASSIGNMENTS.has(n.type)) {
       const left = n.childForFieldName("left");
-      if (left && FIELDS.has(left.type)) changes.push({ target: clip(left.text, 30), value: clip(n.childForFieldName("right")?.text ?? "", 30) });
+      const right = n.childForFieldName("right");
+      if (left && FIELDS.has(left.type)) changes.push({ target: clip(left.text, 30), value: right ? clip(returned(right), 30) : "" });
     } else if (n.type === "return_statement" && n.namedChildren[0]) {
       returns.push(returned(n.namedChildren[0]));
     }

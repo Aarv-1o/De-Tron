@@ -5,7 +5,8 @@ import type { FunctionFacts } from "../index/facts.ts";
 // not a model, so it is only as clear as the code's names.
 
 const code = (text: string) => `\`${text}\``;
-const value = (text: string) => (/^-?\d+(\.\d+)?$|^empty$/.test(text) ? text : code(text));
+// "~a text": the fact is already in words. Numbers read fine as they are.
+const value = (text: string) => (text.startsWith("~") ? text.slice(1) : /^-?\d+(\.\d+)?$|^empty$/.test(text) ? text : code(text));
 
 function list(items: string[]): string {
   if (items.length <= 1) return items[0] ?? "";
@@ -62,7 +63,7 @@ function actions(f: FunctionFacts): string[] {
   if (calls.length) out.push(`calls ${list(calls.slice(0, 3).map((c) => code(`${c}()`)))}${calls.length > 3 ? ` and ${calls.length - 3} more` : ""}`);
   for (const c of f.changes.slice(0, 2)) out.push(`sets ${code(c.target)} to ${value(c.value)}`);
   const r = f.returns[0];
-  if (f.returns.length === 1) out.push(r!.startsWith("<") ? `shows ${code(r!)}` : r!.startsWith("{ ") ? `returns an object ${code(r!)}` : `returns ${code(r!)}`);
+  if (f.returns.length === 1) out.push(r!.startsWith("<") ? `shows ${code(r!)}` : r!.startsWith("{ ") ? `returns an object ${code(r!)}` : `returns ${value(r!)}`);
   else if (f.returns.length > 1) out.push(`returns one of ${f.returns.length} values`);
   return out;
 }

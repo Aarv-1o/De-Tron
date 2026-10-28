@@ -69,3 +69,10 @@ test("a call in a condition is true or false", () => {
   assert.equal(condition("NOT isValid(id)"), "`isValid(id)` is false");
   assert.equal(condition("!isValid(id)"), "`isValid(id)` is false");
 });
+
+test("built strings read as words, not code", async () => {
+  const found = await findings({ "index.js": "function render(app, name) {\n  app.innerHTML = `<div>${name}</div>`;\n}\nfunction label(n) {\n  return `${n} items`;\n}\n" });
+  const said = (name: string) => found.find((f) => f.rule === "dead-function" && f.title.includes(name))!.plain?.does;
+  assert.equal(said("render"), "`render(app, name)`: it sets `app.innerHTML` to HTML.");
+  assert.equal(said("label"), "`label(n)`: it returns a text.");
+});
