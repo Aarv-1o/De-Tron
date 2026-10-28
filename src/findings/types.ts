@@ -31,3 +31,6 @@ export interface Finding {
   // unused code, what probably replaced it.
   plain?: { does?: string; replacedBy?: string };
 }
+
+// Findings about a whole file or app, not one place in it.
+export const WHOLE_FILE_RULES = new Set(["unused-file", "unused-package", "env-file-in-repo", "hotspot", "no-auth-at-all"]);

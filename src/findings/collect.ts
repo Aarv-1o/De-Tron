@@ -7,7 +7,7 @@ import type { LineFinding } from "../rules/line/types.ts";
 import type { ScanResult } from "../scan/scan.ts";
 import { GUIDES } from "./guide.ts";
 import { describe, likelyReplacement, type Candidate } from "./plain.ts";
-import type { Finding, Place } from "./types.ts";
+import { WHOLE_FILE_RULES, type Finding, type Place } from "./types.ts";
 
 // Every check's results as Findings, with the evidence an agent needs: the parameter names,
 // every caller, every copy and how it differs.
@@ -133,9 +133,6 @@ function hotspotFindings(r: ScanResult, findingsIn: (file: string) => number): F
   });
 }
 
-// Findings about a whole file or app: no one function to explain.
-const FILE_LEVEL = new Set(["unused-file", "unused-package", "env-file-in-repo", "hotspot", "no-auth-at-all"]);
-
 // Each finding gets the code it's about in plain words: the innermost function around its line.
 function addPlain(findings: Finding[], r: ScanResult): void {
   const byFile = new Map<string, typeof r.facts>();
@@ -146,7 +143,7 @@ function addPlain(findings: Finding[], r: ScanResult): void {
   const deadAt = new Set(r.dead.functions.map((d) => `${d.fn.file}:${d.fn.startLine}`));
   const candidates: Candidate[] = r.facts.filter((f) => f.name && !deadAt.has(`${f.file}:${f.startLine}`)).map((facts) => ({ facts, uses: Math.max(0, uses.get(facts.name!) ?? 0) }));
   for (const finding of findings) {
-    if (FILE_LEVEL.has(finding.rule)) continue;
+    if (WHOLE_FILE_RULES.has(finding.rule)) continue; // no one function to explain
     const around = (byFile.get(finding.file) ?? []).filter((f) => f.startLine <= finding.line && finding.line <= f.endLine)
       .sort((a, b) => a.endLine - a.startLine - (b.endLine - b.startLine))[0];
     if (!around) continue;
