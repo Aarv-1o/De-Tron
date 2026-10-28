@@ -90,6 +90,12 @@ async function explain(target: string, out: Write): Promise<number> {
 
 // Returns the exit code: 0 ok, 2 bad input.
 export async function run(argv: string[], out: Write): Promise<number> {
+  // Editors add their own flags (--stdio, --clientProcessId=123): the server reads what it
+  // needs, and nothing may be printed, since stdout is the editor's channel.
+  if (argv[0] === "lsp") {
+    runLanguageServer(); // keeps running until the editor closes it
+    return 0;
+  }
   let parsed;
   try {
     parsed = parseArgs({
@@ -98,7 +104,6 @@ export async function run(argv: string[], out: Write): Promise<number> {
       options: {
         all: { type: "boolean" }, agent: { type: "boolean" }, json: { type: "boolean" }, brief: { type: "boolean" },
         changed: { type: "boolean" }, base: { type: "string" }, help: { type: "boolean", short: "h" },
-        stdio: { type: "boolean" }, // editors start language servers with --stdio: that's the only way Detron talks
       },
     });
   } catch (error) {
@@ -112,10 +117,6 @@ export async function run(argv: string[], out: Write): Promise<number> {
     return values.help ? 0 : 2;
   }
   if (command === "explain" && !extra.length) return explain(path, out);
-  if (command === "lsp") {
-    runLanguageServer(); // keeps running until the editor closes it; nothing may be printed
-    return 0;
-  }
   if (command === "scan" && extra.length === 1 && ["all", "agent", "json", "brief", "changed"].includes(extra[0]!)) {
     out(`Did you mean --${extra[0]}? Options start with two dashes.\n`);
     return 2;

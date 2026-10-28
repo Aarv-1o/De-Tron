@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import * as vscode from "vscode";
-import { LanguageClient, TransportKind, type ServerOptions } from "vscode-languageclient/node";
+import { LanguageClient, State, TransportKind, type ServerOptions } from "vscode-languageclient/node";
 
 // The Detron extension for VS Code and its forks (Cursor, Windsurf, Antigravity): starts the
 // Detron language server, which does all the work, and adds what LSP can't: the status bar,
@@ -58,7 +58,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   client.onNotification("detron/status", (s: Status) => {
     [bar.text, bar.tooltip] = statusText(s);
   });
-  await client.start();
+  client.onDidChangeState(({ newState }) => {
+    if (newState === State.Stopped) [bar.text, bar.tooltip] = ["$(error) Detron: stopped", "The Detron server stopped. See View → Output → Detron for why."];
+  });
+  try {
+    await client.start();
+  } catch (error) {
+    [bar.text, bar.tooltip] = ["$(error) Detron: couldn't start", `${(error as Error).message}\nSee View → Output → Detron.`];
+    throw error; // VS Code logs it with the extension's name
+  }
 }
 
 export function deactivate(): Promise<void> | undefined {

@@ -10,7 +10,9 @@ import { makeRepo } from "./helpers.ts";
 function startServer() {
   // DETRON_LSP_BUNDLE=editors/vscode/dist tests the server as the extension ships it.
   const bundle = process.env.DETRON_LSP_BUNDLE;
-  const args = bundle ? [join(bundle, "server.mjs"), "lsp", "--stdio"] : ["--import", "tsx", "src/cli/bin.ts", "lsp", "--stdio"];
+  // The flags VS Code adds when it starts a language server.
+  const flags = ["lsp", "--stdio", `--clientProcessId=${process.pid}`];
+  const args = bundle ? [join(bundle, "server.mjs"), ...flags] : ["--import", "tsx", "src/cli/bin.ts", ...flags];
   const env = bundle ? { ...process.env, DETRON_WASM_DIR: join(bundle, "wasm") } : process.env;
   const child = spawn(process.execPath, args, { cwd: join(import.meta.dirname, ".."), env });
   let buffer = Buffer.alloc(0);
@@ -92,4 +94,10 @@ test("the language server shows your changes, explains them, and offers safe fix
   } finally {
     server.stop();
   }
+});
+
+test("file URIs keep the editor's spelling of the folder (Windows: file:///d%3A/...)", async () => {
+  const { uriOf } = await import("../src/lsp/convert.ts");
+  assert.equal(uriOf("file:///d%3A/detron/Travscape-main", "agents/my file.py"), "file:///d%3A/detron/Travscape-main/agents/my%20file.py");
+  assert.equal(uriOf("file:///home/me/repo/", "a.ts"), "file:///home/me/repo/a.ts");
 });

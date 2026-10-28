@@ -1,5 +1,3 @@
-import { pathToFileURL } from "node:url";
-import { join } from "node:path";
 import {
   CodeActionKind, DiagnosticSeverity, DiagnosticTag,
   type CodeAction, type CodeLens, type Diagnostic, type MarkupContent, type Range,
@@ -19,7 +17,9 @@ const UNUSED = new Set(["dead-function", "unused-file", "unused-param"]);
 const SEES = { error: "your agent sees this as an error", warning: "your agent sees this as a warning", info: "only you see this", hint: "a hint: only you see this" };
 export const MAX_PER_FILE = 20;
 
-export const uriOf = (root: string, file: string) => pathToFileURL(join(root, file)).href;
+// A file's URI, built on the folder's URI exactly as the editor sent it: VS Code on Windows
+// writes file:///d%3A/..., and a URI spelled differently can count as another file.
+export const uriOf = (rootUri: string, file: string) => `${rootUri.replace(/\/$/, "")}/${file.split("/").map(encodeURIComponent).join("/")}`;
 
 // The whole line, without its indentation.
 function lineRange(lines: string[], line: number, endLine = line): Range {
@@ -28,7 +28,7 @@ function lineRange(lines: string[], line: number, endLine = line): Range {
   return { start: { line: line - 1, character: first.length - first.trimStart().length }, end: { line: endLine - 1, character: last.length } };
 }
 
-export function toDiagnostic(root: string, f: Finding, lines: string[]): Diagnostic {
+export function toDiagnostic(rootUri: string, f: Finding, lines: string[]): Diagnostic {
   const unused = UNUSED.has(f.rule);
   return {
     range: lineRange(lines, f.line, unused && f.rule !== "unused-file" ? f.endLine : f.line),
@@ -38,18 +38,18 @@ export function toDiagnostic(root: string, f: Finding, lines: string[]): Diagnos
     // Agents read this line: the one-line fact, nothing else, to keep it cheap.
     message: f.title,
     ...(unused ? { tags: [DiagnosticTag.Unnecessary] } : {}),
-    ...(f.related.length ? { relatedInformation: f.related.slice(0, 5).map((p) => ({ location: { uri: uriOf(root, p.file), range: lineRange([], p.line) }, message: p.label ?? "related" })) } : {}),
+    ...(f.related.length ? { relatedInformation: f.related.slice(0, 5).map((p) => ({ location: { uri: uriOf(rootUri, p.file), range: lineRange([], p.line) }, message: p.label ?? "related" })) } : {}),
     data: { id: f.id },
   };
 }
 
 // Every file's diagnostics, worst first and capped, so a messy file can't flood the editor
 // (or an agent's context: Cursor passes every diagnostic it gets).
-export function diagnosticsByFile(root: string, findings: Finding[], linesOf: (file: string) => string[]): Map<string, Diagnostic[]> {
+export function diagnosticsByFile(rootUri: string, findings: Finding[], linesOf: (file: string) => string[]): Map<string, Diagnostic[]> {
   const byFile = new Map<string, Diagnostic[]>();
   for (const f of findings) {
     if (f.rule === "hotspot") continue; // a banner, not a squiggle
-    byFile.set(f.file, [...(byFile.get(f.file) ?? []), toDiagnostic(root, f, linesOf(f.file))]);
+    byFile.set(f.file, [...(byFile.get(f.file) ?? []), toDiagnostic(rootUri, f, linesOf(f.file))]);
   }
   for (const [file, list] of byFile) byFile.set(file, list.sort((a, b) => a.severity! - b.severity!).slice(0, MAX_PER_FILE));
   return byFile;

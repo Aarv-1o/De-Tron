@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createConnection, ProposedFeatures, TextDocumentSyncKind, type Connection } from "vscode-languageserver/node";
 import { collectFindings } from "../findings/collect.ts";
 import { markNotUseful } from "../findings/feedback.ts";
@@ -41,6 +41,7 @@ async function readOrEmpty(path: string): Promise<string> {
 
 export function startServer(connection: Connection): void {
   let root = "";
+  let rootUri = "";
   let options: Options = { show: "changes", hints: false, clientCommands: false };
   let all: Finding[] = [];
   let changes: Changes = { ok: false, reason: "not scanned yet" };
@@ -65,10 +66,10 @@ export function startServer(connection: Connection): void {
     const list = shown();
     const files = [...new Set(list.map((f) => f.file))];
     texts = new Map(await Promise.all(files.map(async (f) => [f, (await readOrEmpty(join(root, f))).split("\n")] as const)));
-    const byFile = diagnosticsByFile(root, list, linesOf);
+    const byFile = diagnosticsByFile(rootUri, list, linesOf);
     const now = new Set<string>();
     for (const [file, diagnostics] of byFile) {
-      const uri = uriOf(root, file);
+      const uri = uriOf(rootUri, file);
       now.add(uri);
       await connection.sendDiagnostics({ uri, diagnostics });
     }
@@ -108,6 +109,7 @@ export function startServer(connection: Connection): void {
   connection.onInitialize((params) => {
     const folder = params.workspaceFolders?.[0]?.uri ?? params.rootUri;
     root = folder ? fileURLToPath(folder) : process.cwd();
+    rootUri = folder ?? pathToFileURL(root).href;
     options = { ...options, ...(params.initializationOptions as Partial<Options> | undefined) };
     return {
       capabilities: {
