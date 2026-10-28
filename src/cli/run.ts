@@ -7,6 +7,7 @@ import { formatForAgent, formatForPerson } from "../report/brief.ts";
 import { explainFindings, findingsOn } from "../report/explain.ts";
 import { changedLines, isInChanges } from "../scan/changes.ts";
 import { formatScan, scanToJson } from "../report/scan.ts";
+import { runLanguageServer } from "../lsp/server.ts";
 import { scanRepo } from "../scan/scan.ts";
 
 const HELP = `Detron: stops AI coding agents from making a mess of your codebase.
@@ -15,6 +16,8 @@ Usage:
   detron scan [path]          Find security holes, crash risks, frontend/backend mismatches,
                               database issues, copied and dead code in a repo, and where
                               to clean first (default: current folder)
+  detron lsp                  Run as a language server, for editors (VS Code, Cursor,
+                              Windsurf, Antigravity, JetBrains, Zed, Neovim)
   detron explain <file:line>  Everything about the findings on one line: what the code
                               does, why it matters, how to fix it, how to check
 
@@ -95,6 +98,7 @@ export async function run(argv: string[], out: Write): Promise<number> {
       options: {
         all: { type: "boolean" }, agent: { type: "boolean" }, json: { type: "boolean" }, brief: { type: "boolean" },
         changed: { type: "boolean" }, base: { type: "string" }, help: { type: "boolean", short: "h" },
+        stdio: { type: "boolean" }, // editors start language servers with --stdio: that's the only way Detron talks
       },
     });
   } catch (error) {
@@ -108,6 +112,10 @@ export async function run(argv: string[], out: Write): Promise<number> {
     return values.help ? 0 : 2;
   }
   if (command === "explain" && !extra.length) return explain(path, out);
+  if (command === "lsp") {
+    runLanguageServer(); // keeps running until the editor closes it; nothing may be printed
+    return 0;
+  }
   if (command === "scan" && extra.length === 1 && ["all", "agent", "json", "brief", "changed"].includes(extra[0]!)) {
     out(`Did you mean --${extra[0]}? Options start with two dashes.\n`);
     return 2;
