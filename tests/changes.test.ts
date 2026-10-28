@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
+import { run } from "../src/cli/run.ts";
 import { collectFindings } from "../src/findings/collect.ts";
 import { changedLines, isInChanges } from "../src/scan/changes.ts";
 import { scanRepo } from "../src/scan/scan.ts";
@@ -47,6 +48,20 @@ test("on main, your changes are what isn't committed", async () => {
   const changes = await changedLines(root);
   assert.ok(changes.ok && changes.base === "HEAD");
   assert.equal((changes.files.get("index.js") as Set<number>).size, 3);
+});
+
+test("scan --changed: plain words for people, one line each for agents", async () => {
+  const root = await branchRepo();
+  let text = "";
+  assert.equal(await run(["scan", root, "--changed"], (t) => (text += t)), 0);
+  assert.match(text, /^Clean-up \(2\)\n {2}extra\.js:1 {2}Unused file.*\n {2}index\.js:6 {2}Dead function: calcTax\n {6}`calcTax\(total\)`: it returns `total \* 0\.18`\./);
+  assert.match(text, /1 older finding from before this change/);
+  let brief = "";
+  await run(["scan", root, "--changed", "--brief"], (t) => (brief += t));
+  assert.equal(brief, "", "clean-up isn't sent to agents: nothing to say");
+  let all = "";
+  await run(["scan", root, "--brief"], (t) => (all += t));
+  assert.match(all, /^index\.js:4 warning detron\/empty-catch: /);
 });
 
 test("without git, everything counts as yours", async () => {

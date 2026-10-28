@@ -1,4 +1,5 @@
 import { GUIDES } from "../findings/guide.ts";
+import { HIDES_FAILURES } from "../findings/severity.ts";
 import type { Finding } from "../findings/types.ts";
 
 // `detron scan --agent`: findings as instructions an agent can follow, grouped by rule so the
@@ -6,10 +7,9 @@ import type { Finding } from "../findings/types.ts";
 // not tasks) last.
 
 const ORDER: Finding["category"][] = ["security", "crash", "frontend-backend", "database", "hygiene", "copies", "dead-code", "hotspot"];
-const ERRORS_FIRST = ["empty-catch", "catch-only-logs", "catch-returns-default"];
 const SAFETY = { safe: "safe to fix on its own", "ask-first": "ask the user first", warning: "a warning, not a task" };
 
-const rank = (f: Finding) => ORDER.indexOf(f.category) * 10 + (f.category === "hygiene" && !ERRORS_FIRST.includes(f.rule) ? 5 : 0);
+const rank = (f: Finding) => ORDER.indexOf(f.category) * 10 + (f.category === "hygiene" && !HIDES_FAILURES.has(f.rule) ? 5 : 0);
 
 function item(f: Finding): string[] {
   const span = f.endLine && f.endLine !== f.line ? `-${f.endLine}` : "";
