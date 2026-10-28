@@ -13,7 +13,7 @@ function serverOptions(context: vscode.ExtensionContext): ServerOptions {
   const own = vscode.workspace.getConfiguration("detron").get<string[]>("serverCommand", []);
   if (own.length) return { command: own[0]!, args: own.slice(1), transport: TransportKind.stdio };
   const dist = context.asAbsolutePath("dist");
-  return { module: join(dist, "server.mjs"), args: ["lsp"], transport: TransportKind.stdio, options: { env: { ...process.env, DETRON_WASM_DIR: join(dist, "wasm") } } };
+  return { module: join(dist, "server.mjs"), args: ["lsp"], transport: TransportKind.stdio };
 }
 
 function statusText(s: Status): [string, string] {
