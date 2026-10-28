@@ -8,6 +8,7 @@ import { explainFindings, findingsOn } from "../report/explain.ts";
 import { changedLines, isInChanges } from "../scan/changes.ts";
 import { formatScan, scanToJson } from "../report/scan.ts";
 import type { HookInput } from "../agent/hooks.ts";
+import { init } from "../agent/init.ts";
 import { hookReply } from "../daemon/client.ts";
 import { serve } from "../daemon/server.ts";
 import { runLanguageServer } from "../lsp/server.ts";
@@ -21,6 +22,9 @@ Usage:
                               to clean first (default: current folder)
   detron lsp                  Run as a language server, for editors (VS Code, Cursor,
                               Windsurf, Antigravity, JetBrains, Zed, Neovim)
+  detron init [path]          Set up Detron's hooks for Claude Code in a repo (Cursor and
+                              Copilot CLI read them too). --mode block to also stop tasks
+                              that add security or crash problems
   detron hook claude          Run as an agent hook: reads the hook's JSON on stdin, answers
                               in Claude Code's format (Cursor and Copilot CLI read it too)
   detron serve [path]         The background Detron that hooks talk to (started for you)
@@ -139,7 +143,7 @@ export async function run(argv: string[], out: Write): Promise<number> {
       allowPositionals: true,
       options: {
         all: { type: "boolean" }, agent: { type: "boolean" }, json: { type: "boolean" }, brief: { type: "boolean" },
-        changed: { type: "boolean" }, base: { type: "string" }, help: { type: "boolean", short: "h" },
+        changed: { type: "boolean" }, base: { type: "string" }, help: { type: "boolean", short: "h" }, mode: { type: "string" },
       },
     });
   } catch (error) {
@@ -153,6 +157,20 @@ export async function run(argv: string[], out: Write): Promise<number> {
     return values.help ? 0 : 2;
   }
   if (command === "explain" && !extra.length) return explain(path, out);
+  if (command === "init" && !extra.length) {
+    if (values.mode && values.mode !== "suggest" && values.mode !== "block") {
+      out(`--mode is suggest or block, not "${values.mode}".\n`);
+      return 2;
+    }
+    try {
+      const done = await init(resolve(path), process.argv[1]!, values.mode as "suggest" | "block" | undefined);
+      out(`${done.map((d) => `✓ ${d}`).join("\n")}\nStart a new Claude Code session in this repo to use them.\n`);
+      return 0;
+    } catch (error) {
+      out(`${(error as Error).message}\n`);
+      return 1;
+    }
+  }
   if (command === "scan" && extra.length === 1 && ["all", "agent", "json", "brief", "changed"].includes(extra[0]!)) {
     out(`Did you mean --${extra[0]}? Options start with two dashes.\n`);
     return 2;
