@@ -3,11 +3,36 @@ import type { FunctionInfo } from "../index/functions.ts";
 import { shapeOf } from "../index/shape.ts";
 import type { LanguageId, Syntax } from "./types.ts";
 
-export function* descendants(node: Node): Generator<Node> {
-  for (const child of node.namedChildren) {
-    yield child;
-    yield* descendants(child);
+// Every named node under `node`, in order, walked with a cursor: each step into the parser's
+// memory costs, and recursing through namedChildren made this the slowest part of a scan.
+// A whole tree is walked once and shared, since every check walks every file.
+const wholeTrees = new WeakMap<object, Node[]>();
+
+function namedNodes(start: Node): Node[] {
+  const found: Node[] = [];
+  const cursor = start.walk(); // bounded to `start`: gotoParent stops there
+  try {
+    for (;;) {
+      if (cursor.nodeIsNamed) found.push(cursor.currentNode);
+      if (cursor.gotoFirstChild()) continue;
+      while (!cursor.gotoNextSibling()) if (!cursor.gotoParent()) return found;
+    }
+  } finally {
+    cursor.delete();
   }
+}
+
+// `node` itself first, then everything under it.
+export function subtree(node: Node): Node[] {
+  if (node.parent) return namedNodes(node);
+  let all = wholeTrees.get(node.tree);
+  if (!all) wholeTrees.set(node.tree, (all = namedNodes(node)));
+  return all;
+}
+
+export function* descendants(node: Node): Generator<Node> {
+  const all = subtree(node);
+  for (let i = 1; i < all.length; i++) yield all[i]!;
 }
 
 export function enclosingClass(node: Node, classType: string): string | undefined {

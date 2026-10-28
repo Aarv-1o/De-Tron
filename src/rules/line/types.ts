@@ -1,4 +1,5 @@
 import type { Node } from "web-tree-sitter";
+import { subtree } from "../../languages/nodes.ts";
 import type { Syntax } from "../../languages/types.ts";
 import type { ParsedFile } from "../../parse/parse.ts";
 import type { Confidence } from "../confidence.ts";
@@ -22,8 +23,7 @@ export interface FileContext {
 export type LineRule = (context: FileContext) => LineFinding[] | Promise<LineFinding[]>;
 
 export function* walk(node: Node): Generator<Node> {
-  yield node;
-  for (const child of node.namedChildren) yield* walk(child);
+  yield* subtree(node);
 }
 
 export const lineOf = (node: Node) => node.startPosition.row + 1;
