@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { basename, join } from "node:path";
 import { Language, Parser, type Tree } from "web-tree-sitter";
 import { grammarForFile, wasmFor, type LanguageId } from "../languages/index.ts";
 
@@ -26,8 +27,10 @@ function getParser(language: LanguageId): Promise<Parser> {
   let parser = parsers.get(language);
   if (!parser) {
     parser = (async () => {
-      await Parser.init();
-      const grammar = await Language.load(require.resolve(wasmFor(language)));
+      // Bundled (the editor extension): the .wasm files sit in one folder, named by DETRON_WASM_DIR.
+      const dir = process.env.DETRON_WASM_DIR;
+      await Parser.init(dir ? { locateFile: (file: string) => join(dir, file) } : undefined);
+      const grammar = await Language.load(dir ? join(dir, basename(wasmFor(language))) : require.resolve(wasmFor(language)));
       const p = new Parser();
       p.setLanguage(grammar);
       return p;

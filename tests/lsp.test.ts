@@ -8,7 +8,11 @@ import { makeRepo } from "./helpers.ts";
 
 // Talks to `detron lsp` the way an editor does: JSON-RPC messages with Content-Length headers.
 function startServer() {
-  const child = spawn(process.execPath, ["--import", "tsx", "src/cli/bin.ts", "lsp", "--stdio"], { cwd: join(import.meta.dirname, "..") });
+  // DETRON_LSP_BUNDLE=editors/vscode/dist tests the server as the extension ships it.
+  const bundle = process.env.DETRON_LSP_BUNDLE;
+  const args = bundle ? [join(bundle, "server.mjs"), "lsp", "--stdio"] : ["--import", "tsx", "src/cli/bin.ts", "lsp", "--stdio"];
+  const env = bundle ? { ...process.env, DETRON_WASM_DIR: join(bundle, "wasm") } : process.env;
+  const child = spawn(process.execPath, args, { cwd: join(import.meta.dirname, ".."), env });
   let buffer = Buffer.alloc(0);
   let nextId = 1;
   const pending = new Map<number, (result: unknown) => void>();

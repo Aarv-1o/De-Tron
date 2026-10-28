@@ -1,0 +1,39 @@
+{
+  "name": "detron",
+  "displayName": "Detron",
+  "description": "Finds the mess AI coding agents leave: security holes, crash risks, broken frontend/backend calls, copied and dead code. Explained in plain words, right in the editor.",
+  "version": "0.0.1",
+  "publisher": "detron",
+  "license": "MIT",
+  "author": { "name": "Aarv Singh Chauhan", "email": "aarvsinghchauhan@gmail.com" },
+  "repository": { "type": "git", "url": "https://github.com/Aarv-1o/De-Tron" },
+  "engines": { "vscode": "^1.91.0" },
+  "categories": ["Linters"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "detron.toggleShow", "title": "Detron: Switch between your changes and the whole repo" },
+      { "command": "detron.rescan", "title": "Detron: Check again" }
+    ],
+    "configuration": {
+      "title": "Detron",
+      "properties": {
+        "detron.show": { "type": "string", "enum": ["changes", "all"], "default": "changes", "enumDescriptions": ["Only what this branch or your uncommitted work added", "Everything in the repo"], "description": "Which findings to show." },
+        "detron.hints": { "type": "boolean", "default": false, "description": "Also show hints: findings Detron is less sure about." },
+        "detron.serverCommand": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Run your own Detron instead of the bundled one, e.g. [\"node\", \"--import\", \"tsx\", \"D:/detron/De-Tron/src/cli/bin.ts\", \"lsp\"]. Empty: the bundled one." }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "package": "node build.mjs && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/vscode": "1.91.0",
+    "@vscode/vsce": "3.9.2",
+    "esbuild": "0.28.2",
+    "vscode-languageclient": "10.1.2"
+  }
+}
