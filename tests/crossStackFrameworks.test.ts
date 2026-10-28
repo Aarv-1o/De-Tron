@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildIndex } from "../src/index/repo.ts";
-import { supportFor } from "../src/languages/index.ts";
 import { findCrossStack } from "../src/rules/crossStack/check.ts";
 import type { FileApi } from "../src/rules/crossStack/types.ts";
 import { makeRepo } from "./helpers.ts";
@@ -9,8 +8,8 @@ import { makeRepo } from "./helpers.ts";
 // Findings as "kind METHOD /path file:line", plus how many routes were found.
 async function crossStack(files: Record<string, string>): Promise<string[]> {
   const root = await makeRepo(files);
-  const apis = new Map<string, FileApi>();
-  const index = await buildIndex(root, { onFile: (p, f) => void apis.set(f, supportFor(p.language).extractApi(p.tree.rootNode, f)) });
+  const index = await buildIndex(root);
+  const apis = new Map<string, FileApi>([...index.scans].map(([file, s]) => [file, s.api]));
   const result = findCrossStack(apis, new Map([...index.usage].map(([file, u]) => [file, u.imports])));
   return [
     `routes ${result.routes}`,

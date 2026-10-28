@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { test } from "node:test";
 import { makeRepo } from "./helpers.ts";
 import { buildIndex } from "../src/index/repo.ts";
@@ -19,11 +21,17 @@ test("buildIndex indexes a mixed JS + Python repo", async () => {
   assert.deepEqual(index.filesWithSyntaxErrors, ["api/broken.py"]);
 });
 
-test("buildIndex hands each parsed file to onFile, before freeing it", async () => {
-  const root = await makeRepo({ "a.ts": "const a = 1;\n", "b.py": "b = 2\n", "notes.md": "# hi\n" });
-  const seen: string[] = [];
-  await buildIndex(root, { onFile: (parsed, file) => {
-    seen.push(`${file}:${parsed.tree.rootNode.type}`);
-  } });
-  assert.deepEqual(seen, ["a.ts:program", "b.py:module"]);
+test("buildIndex reads again only the files that changed", async () => {
+  const root = await makeRepo({ "a.ts": "export const a = 1;\n", "b.py": "b = 2\n", "notes.md": "# hi\n" });
+  const cache = new Map();
+  assert.equal((await buildIndex(root, cache)).filesRead, 2);
+  assert.equal((await buildIndex(root, cache)).filesRead, 0, "nothing changed");
+  await writeFile(join(root, "a.ts"), "export function a() { return 2; }\n");
+  await writeFile(join(root, "c.ts"), "export const c = 3;\n");
+  const again = await buildIndex(root, cache);
+  assert.equal(again.filesRead, 2, "the edited file and the new one");
+  assert.deepEqual(again.functions.map((f) => f.name), ["a"]);
+  await rm(join(root, "b.py"));
+  assert.deepEqual((await buildIndex(root, cache)).files, ["a.ts", "c.ts"]);
+  assert.deepEqual([...cache.keys()].sort(), ["a.ts", "c.ts"], "a deleted file leaves the cache");
 });

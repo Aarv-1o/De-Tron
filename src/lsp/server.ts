@@ -10,6 +10,7 @@ import { formatAgent } from "../report/agent.ts";
 import { formatForPerson } from "../report/brief.ts";
 import { explainFindings, findingsOn } from "../report/explain.ts";
 import { changedLines, isInChanges, type Changes } from "../scan/changes.ts";
+import type { FileCache } from "../index/fileScan.ts";
 import { scanRepo } from "../scan/scan.ts";
 import { codeActions, diagnosticsByFile, hotspotLens, hoverCard, uriOf } from "./convert.ts";
 
@@ -46,6 +47,7 @@ export function startServer(connection: Connection): void {
   let rootUri = "";
   let options: Options = { show: "changes", hints: false, clientCommands: false };
   let all: Finding[] = [];
+  const files: FileCache = new Map(); // in memory only: each save re-reads just the changed files
   let changes: Changes = { ok: false, reason: "not scanned yet" };
   let published = new Set<string>();
   let texts = new Map<string, string[]>();
@@ -84,7 +86,7 @@ export function startServer(connection: Connection): void {
   async function scan(): Promise<void> {
     status(true);
     try {
-      all = await collectFindings(await scanRepo(root));
+      all = await collectFindings(await scanRepo(root, files));
       changes = await changedLines(root);
       await publish();
     } catch (error) {

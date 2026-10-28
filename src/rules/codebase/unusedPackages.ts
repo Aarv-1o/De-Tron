@@ -42,6 +42,19 @@ export function packageOf(source: string): string | undefined {
   return BUILTINS.has(name) ? undefined : name;
 }
 
+// Sizes change only when a package is (re)installed, which rewrites its package.json: remembered
+// until then, so re-checks after every edit don't walk node_modules again.
+const sizes = new Map<string, { stamp: number; bytes: number }>();
+
+async function packageSize(dir: string): Promise<number> {
+  const stamp = (await stat(join(dir, "package.json"))).mtimeMs;
+  const known = sizes.get(dir);
+  if (known?.stamp === stamp) return known.bytes;
+  const bytes = await folderSize(dir);
+  sizes.set(dir, { stamp, bytes });
+  return bytes;
+}
+
 async function folderSize(path: string): Promise<number> {
   let total = 0;
   for (const entry of await readdir(path, { withFileTypes: true })) {
@@ -115,7 +128,7 @@ export async function findUnusedPackages(index: RepoIndex): Promise<UnusedPackag
         const pkg = installed.get(name);
         // Without node_modules we can't check peers, so we're less sure.
         const confidence: Confidence = dev || !pkg ? "likely" : "sure";
-        const sizeBytes = pkg ? await folderSize(join(nodeModules, name)).catch(() => undefined) : undefined;
+        const sizeBytes = pkg ? await packageSize(join(nodeModules, name)).catch(() => undefined) : undefined;
         unused.push({ name, manifest: manifestPath, dev, confidence, sizeBytes });
       }
     }

@@ -1,14 +1,12 @@
-import { functionFacts, type FunctionFacts } from "../index/facts.ts";
+import type { FunctionFacts } from "../index/facts.ts";
 import { unsupportedCode } from "../index/files.ts";
 import { buildIndex, type RepoIndex } from "../index/repo.ts";
-import { extractUsage } from "../index/usage.ts";
-import { supportFor } from "../languages/index.ts";
 import type { DeadCode } from "../report/deadCode.ts";
 import { findDeadFunctions } from "../rules/codebase/deadFunctions.ts";
 import { findDifferences, type CopyDifferences } from "../rules/codebase/differences.ts";
 import { findDuplicates, type DuplicateGroup } from "../rules/codebase/duplicates.ts";
 import { findFunctionShapeIssues } from "../rules/codebase/functionShape.ts";
-import { findHotspots, gitHistory, indentComplexity, stringRows, type FileSize, type History, type Hotspot } from "../rules/codebase/hotspots.ts";
+import { findHotspots, gitHistory, type FileSize, type History, type Hotspot } from "../rules/codebase/hotspots.ts";
 import { findUnusedFiles } from "../rules/codebase/unusedFiles.ts";
 import { findUnusedPackages } from "../rules/codebase/unusedPackages.ts";
 import { findCrossStack, type CrossStack } from "../rules/crossStack/check.ts";
@@ -17,7 +15,8 @@ import type { FileApi } from "../rules/crossStack/types.ts";
 import { DATABASE_RULES, moneyInSchemaText, usesDatabase } from "../rules/database/index.ts";
 import { findEndpointIssues } from "../rules/security/endpoints.ts";
 import { committedEnvFiles, CRASH_RULES, SECURITY_RULES } from "../rules/security/index.ts";
-import { runLineRules, type LineFinding } from "../rules/line/index.ts";
+import type { LineFinding } from "../rules/line/index.ts";
+import type { FileCache } from "../index/fileScan.ts";
 import { readTexts } from "../index/texts.ts";
 import { ignoreChecker } from "../findings/ignores.ts";
 
@@ -46,22 +45,16 @@ export interface ScanResult {
 
 const RATE_LIMIT_LIBRARY = /^(express-rate-limit|express-slow-down|rate-limiter-flexible|@fastify\/rate-limit|hono-rate-limiter|@upstash\/ratelimit|@nestjs\/throttler|koa-ratelimit|slowapi|flask_limiter|django_ratelimit|ratelimit|fastapi_limiter)/;
 
-export async function scanRepo(root: string): Promise<ScanResult> {
+// `cache` keeps what each file taught us between scans (the editor and agent hooks reuse one),
+// so only changed files are read again. Without one, every file is read.
+export async function scanRepo(root: string, cache: FileCache = new Map()): Promise<ScanResult> {
   const started = Date.now();
-  const lineFindings: LineFinding[] = [];
-  const apis = new Map<string, FileApi>();
-  const sizes = new Map<string, FileSize>();
-  const facts: FunctionFacts[] = [];
-  const index = await buildIndex(root, {
-    onFile: async (parsed, file) => {
-      const imports = extractUsage(parsed).imports.map((i) => i.source);
-      lineFindings.push(...(await runLineRules(parsed, file, imports)));
-      facts.push(...functionFacts(parsed, file));
-      apis.set(file, supportFor(parsed.language).extractApi(parsed.tree.rootNode, file));
-      // The file as written: an Astro template's nesting is complexity too.
-      sizes.set(file, indentComplexity(parsed.original ?? parsed.source, stringRows(parsed.tree.rootNode)));
-    },
-  });
+  const index = await buildIndex(root, cache);
+  const scans = [...index.scans];
+  const lineFindings: LineFinding[] = scans.flatMap(([, s]) => s.lines);
+  const apis = new Map<string, FileApi>(scans.map(([file, s]) => [file, s.api]));
+  const sizes = new Map<string, FileSize>(scans.map(([file, s]) => [file, s.size]));
+  const facts: FunctionFacts[] = scans.flatMap(([, s]) => s.facts);
   lineFindings.push(...findFunctionShapeIssues(index.functions));
 
   const groups = findDuplicates(index.functions);
