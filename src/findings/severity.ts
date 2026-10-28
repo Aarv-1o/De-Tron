@@ -12,7 +12,8 @@ export const HIDES_FAILURES = new Set(["empty-catch", "catch-only-logs", "catch-
 
 export function partOf(f: Finding): Part {
   if (f.category === "security") return "security";
-  if (f.category === "crash" || f.category === "frontend-backend" || HIDES_FAILURES.has(f.rule)) return "breaks";
+  // A route nothing calls breaks nothing: it's clean-up. A call to a route that isn't there breaks.
+  if (f.category === "crash" || (f.category === "frontend-backend" && f.rule !== "unused-route") || HIDES_FAILURES.has(f.rule)) return "breaks";
   if (f.category === "database") return "database";
   return "cleanup";
 }

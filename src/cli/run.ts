@@ -67,7 +67,7 @@ async function scan(path: string, { all, format, changed, base }: ScanOptions, o
     findings = mine;
   }
   const shown = all ? findings : findings.filter((f) => f.confidence !== "maybe");
-  if (format === "brief") out(formatForAgent(shown));
+  if (format === "brief") out(formatForAgent(shown, `detron scan${changed ? " --changed" : ""} --agent`));
   else if (format === "text") out(formatForPerson(shown, older));
   else if (format === "agent") out(formatAgent(root, findings, all));
   else out(`${JSON.stringify(scanToJson(result, findings), null, 2)}\n`);

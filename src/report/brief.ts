@@ -10,12 +10,13 @@ const order = (a: Finding, b: Finding) => PARTS.indexOf(partOf(a)) - PARTS.index
 
 export const briefLine = (f: Finding) => `${f.file}:${f.line} ${severityOf(f)} detron/${f.rule}: ${f.title}`;
 
-export function formatForAgent(findings: Finding[]): string {
+// `all` is the command that lists every finding, for the "…and N more" line.
+export function formatForAgent(findings: Finding[], all = "detron scan --agent"): string {
   const sent = findings.filter((f) => ["error", "warning"].includes(severityOf(f))).sort(order);
   if (!sent.length) return "";
   const shown = sent.slice(0, AGENT_MAX);
   const more = sent.length - shown.length;
-  return `${[...shown.map(briefLine), ...(more ? [`…and ${more} more: run \`detron scan --changed --agent\` for all of them.`] : []), "Full steps for one: `detron explain <file:line>`."].join("\n")}\n`;
+  return `${[...shown.map(briefLine), ...(more ? [`…and ${more} more: \`${all}\` lists all of them.`] : []), "Full steps for one: `detron explain <file:line>`."].join("\n")}\n`;
 }
 
 export function formatForPerson(findings: Finding[], hiddenOld: number): string {

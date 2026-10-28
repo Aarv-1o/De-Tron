@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { run } from "../src/cli/run.ts";
 import { collectFindings } from "../src/findings/collect.ts";
+import { partOf } from "../src/findings/severity.ts";
+import type { Finding } from "../src/findings/types.ts";
 import { changedLines, isInChanges } from "../src/scan/changes.ts";
 import { scanRepo } from "../src/scan/scan.ts";
 import { makeRepo } from "./helpers.ts";
@@ -70,4 +72,10 @@ test("without git, everything counts as yours", async () => {
   assert.equal(changes.ok, false);
   const findings = await collectFindings(await scanRepo(root));
   assert.ok(findings.every((f) => isInChanges(f, changes)));
+});
+
+test("a route nothing calls is clean-up; a call to a missing route will break", () => {
+  const base: Omit<Finding, "rule"> = { id: "x", category: "frontend-backend", confidence: "likely", file: "a.js", line: 1, title: "", evidence: [], related: [], why: "", fix: [], safety: "ask-first", verify: "" };
+  assert.equal(partOf({ ...base, rule: "unused-route" }), "cleanup");
+  assert.equal(partOf({ ...base, rule: "missing-route" }), "breaks");
 });
