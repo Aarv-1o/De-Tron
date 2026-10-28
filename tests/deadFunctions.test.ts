@@ -48,3 +48,9 @@ test("does not flag functions used in ways we can't see by name", async () => {
     "chat.js": "function sendMessage() {}\n", // called from HTML
   }), []);
 });
+
+test("editor extensions' activate and deactivate are called by the editor", async () => {
+  assert.deepEqual(await deadIn({
+    "src/extension.ts": "export function activate(context) { return context; }\nexport function deactivate() {}\nfunction activateLater() {}\n",
+  }), ["sure activateLater"]);
+});

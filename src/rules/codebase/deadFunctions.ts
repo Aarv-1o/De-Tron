@@ -11,11 +11,12 @@ export interface DeadFunction {
   reason: string;
 }
 
-// Exports that frameworks call by name (Next.js, Remix, SvelteKit...).
+// Exports that frameworks call by name (Next.js, Remix, SvelteKit, editor extensions...).
 const FRAMEWORK_EXPORTS = new Set([
   "getServerSideProps", "getStaticProps", "getStaticPaths", "generateMetadata", "generateStaticParams",
   "loader", "action", "meta", "links", "headers", "middleware", "load",
   "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS",
+  "activate", "deactivate", // VS Code (and Cursor, Windsurf...) extensions
 ]);
 
 function add(map: Map<string, number>, name: string, n: number) {
