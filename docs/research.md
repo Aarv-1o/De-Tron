@@ -367,3 +367,21 @@ Sources: [Google, CACM 2018](https://cacm.acm.org/magazines/2018/4/226371-lesson
 [Cursor: lint loop](https://forum.cursor.com/t/unrestricted-loop-of-linter-errors/36436),
 [Claude Code hooks](https://code.claude.com/docs/en/hooks),
 [MCP token bloat](https://thenewstack.io/how-to-reduce-mcp-token-bloat/).
+
+## Hooks, the background Detron and speed (Oct 2026)
+
+- **Speed.** 95% of a scan was per-file work, and most of that was walking syntax trees: every
+  rule walked every tree on its own, recursing through the parser's WASM memory. One cursor walk
+  per tree, shared, cut Escrows-AI from 8.7s to 4.9s. Keeping each file's results in memory and
+  rereading only changed files brings a re-check after an edit to ~0.5s in-process; through the
+  built hook it answers in ~120ms. Findings stayed identical on five repos (compared line by line).
+- **No disk cache.** Options weighed: a cache in the repo (can be committed, or shipped poisoned
+  in a clone), a signed cache in the user's folder (work), or memory only. Chose memory only, in a
+  background Detron per repo: the first scan of a session is the only slow one.
+- **The ledger.** "New" means new since the agent's session started (or before its first edit),
+  matched by rule, file and title, so moved lines don't count as new and a function made dead by
+  an edit elsewhere does.
+- **Found while building.** `node --import tsx` resolves `tsx` from the current folder, and hooks
+  run from the project's folder: hooks now run a built single file with plain `node`.
+- **Real run.** Claude Code 2.1.312, asked to add an `eval()` route: after the edit it got
+  "index.js:14 error detron/code-eval: eval() runs code from req.body" and passed it on.

@@ -32,6 +32,26 @@ npm run detron -- scan path/to/your/repo
 To silence one finding, write why: `// detron-ignore empty-catch: the cache is optional`
 (`#` in Python) on its line or the line above. Without a reason, it doesn't count.
 
+## With your agent
+
+```
+npm run build                      # once: Detron as one file, dist/detron.mjs
+node dist/detron.mjs init path/to/your/repo
+```
+
+That sets up Claude Code's hooks in your repo (`.claude/settings.local.json`; Cursor and
+Copilot CLI read them too). Then, in every agent session:
+
+- **After each edit** the agent hears only problems this task added, once each, in a few lines,
+  and nothing when the edit is clean. Old issues in the repo never nag
+- **Every 10 edits** a check-in: what to focus on
+- **At the end** a one-line summary for you
+- **Suggest mode** (default) only tells the agent. `init --mode block` also sends new security
+  or crash problems back as errors and won't let the task finish while they're there
+
+A background Detron keeps the repo in memory (never on disk), so a check after an edit takes
+about a tenth of a second. It starts on first use and stops after a quiet half hour.
+
 ## In your editor
 
 `editors/vscode` is an extension for VS Code, Cursor, Windsurf and Antigravity. Build it with
