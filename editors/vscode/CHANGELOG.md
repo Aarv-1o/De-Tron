@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.3
+
+- Fix: the extension stopped at startup ("command 'detron.toggleShow' already exists"). The server's commands are now detron.server.*.
+
 ## 0.0.2
 
 - The Detron sidebar: scan, your changes or the whole repo, findings by part, reports.

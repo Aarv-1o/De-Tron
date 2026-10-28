@@ -45,9 +45,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await vscode.env.clipboard.writeText(text);
       void vscode.window.showInformationMessage("Detron: copied. Paste it into your agent's chat.");
     }),
-    vscode.commands.registerCommand("detron.toggleShow", () => run("detron.toggleShow")),
-    vscode.commands.registerCommand("detron.toggleHints", () => run("detron.toggleHints")),
-    vscode.commands.registerCommand("detron.rescan", () => run("detron.rescan")),
+    vscode.commands.registerCommand("detron.toggleShow", () => run("detron.server.toggleShow")),
+    vscode.commands.registerCommand("detron.toggleHints", () => run("detron.server.toggleHints")),
+    vscode.commands.registerCommand("detron.rescan", () => run("detron.server.rescan")),
   );
   const sidebar = new Sidebar(context.extensionUri, () => client);
   context.subscriptions.push(vscode.window.registerWebviewViewProvider("detron.panel", sidebar));

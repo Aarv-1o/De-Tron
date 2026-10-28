@@ -99,7 +99,7 @@ export function codeActions(uri: string, findings: Finding[], lines: string[], {
       title: `Detron: ignore ${f.rule} here (write the reason after the colon)`, kind: CodeActionKind.QuickFix,
       edit: { changes: { [uri]: [{ range: { start: { line: f.line - 1, character: 0 }, end: { line: f.line - 1, character: 0 } }, newText: `${indent}${commentFor(f.file)} detron-ignore ${f.rule}: \n` }] } },
     });
-    actions.push({ title: `Detron: not useful (${GUIDES[f.rule]?.name ?? f.rule})`, kind: CodeActionKind.Empty, command: { title: "Not useful", command: "detron.notUseful", arguments: [f.id, f.rule] } });
+    actions.push({ title: `Detron: not useful (${GUIDES[f.rule]?.name ?? f.rule})`, kind: CodeActionKind.Empty, command: { title: "Not useful", command: "detron.server.notUseful", arguments: [f.id, f.rule] } });
   }
   return actions;
 }

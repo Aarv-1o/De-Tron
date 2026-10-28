@@ -120,7 +120,9 @@ export function startServer(connection: Connection): void {
         hoverProvider: true,
         codeActionProvider: true,
         codeLensProvider: {},
-        executeCommandProvider: { commands: ["detron.notUseful", "detron.toggleShow", "detron.toggleHints", "detron.rescan"] },
+        // "detron.server.*": the editor's language client registers each of these as an editor
+        // command, so they mustn't share names with the extension's own detron.* commands.
+        executeCommandProvider: { commands: ["detron.server.notUseful", "detron.server.toggleShow", "detron.server.toggleHints", "detron.server.rescan"] },
       },
       serverInfo: { name: "detron" },
     };
@@ -142,21 +144,21 @@ export function startServer(connection: Connection): void {
   });
   connection.onCodeLens(({ textDocument }) => shown().filter((f) => f.rule === "hotspot" && f.file === fileOf(textDocument.uri)).map(hotspotLens));
   connection.onExecuteCommand(async ({ command, arguments: args }) => {
-    if (command === "detron.notUseful") {
+    if (command === "detron.server.notUseful") {
       const [id, rule] = args as [string, string];
       await markNotUseful(root, { id, rule });
       all = all.filter((f) => f.id !== id);
       return rescan();
     }
-    if (command === "detron.toggleShow") {
+    if (command === "detron.server.toggleShow") {
       options.show = options.show === "changes" ? "all" : "changes";
       return publish();
     }
-    if (command === "detron.toggleHints") {
+    if (command === "detron.server.toggleHints") {
       options.hints = !options.hints;
       return publish();
     }
-    if (command === "detron.rescan") return rescan();
+    if (command === "detron.server.rescan") return rescan();
     return undefined;
   });
 

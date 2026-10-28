@@ -47,9 +47,9 @@ export class Sidebar implements vscode.WebviewViewProvider {
     if (!client) return;
     const command = (name: string) => client.sendRequest("workspace/executeCommand", { command: name, arguments: [] });
     if (m.type === "ready" && this.status) return this.update(this.status);
-    if (m.type === "rescan") await command("detron.rescan");
-    if (m.type === "toggleShow") await command("detron.toggleShow");
-    if (m.type === "toggleHints") await command("detron.toggleHints");
+    if (m.type === "rescan") await command("detron.server.rescan");
+    if (m.type === "toggleShow") await command("detron.server.toggleShow");
+    if (m.type === "toggleHints") await command("detron.server.toggleHints");
     if (m.type === "settings") await vscode.commands.executeCommand("workbench.action.openSettings", "detron");
     if (m.type === "open") {
       const folder = vscode.workspace.workspaceFolders?.[0];

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
@@ -68,7 +68,13 @@ test("the language server shows your changes, explains them, and offers safe fix
   const uri = pathToFileURL(join(root, "index.js")).href;
   const server = startServer();
   try {
-    await server.request("initialize", { processId: null, rootUri: pathToFileURL(root).href, capabilities: {}, initializationOptions: { clientCommands: true } });
+    const init = await server.request("initialize", { processId: null, rootUri: pathToFileURL(root).href, capabilities: {}, initializationOptions: { clientCommands: true } });
+    // VS Code's language client registers every server command as an editor command: one with
+    // the same name as the extension's own makes the extension fail to start.
+    const extension = await readFile(join(import.meta.dirname, "../editors/vscode/src/extension.ts"), "utf8");
+    const own = [...extension.matchAll(/registerCommand\("([^"]+)"/g)].map((m) => m[1]);
+    assert.ok(own.length >= 3);
+    assert.deepEqual(init.capabilities.executeCommandProvider.commands.filter((c: string) => own.includes(c)), []);
     server.notify("initialized", {});
     const status = await server.waitFor("detron/status", (p) => !p.scanning);
     assert.deepEqual(status.counts, { security: 0, breaks: 0, database: 0, cleanup: 1 });
@@ -94,7 +100,7 @@ test("the language server shows your changes, explains them, and offers safe fix
     assert.match(await server.request("detron/explain", { id: list.items[0].id }), /## Dead functions \(1\)/);
 
     const before = server.count();
-    await server.request("workspace/executeCommand", { command: "detron.toggleShow", arguments: [] });
+    await server.request("workspace/executeCommand", { command: "detron.server.toggleShow", arguments: [] });
     const whole = await server.waitFor("textDocument/publishDiagnostics", (p) => p.uri === uri, before);
     assert.deepEqual(whole.diagnostics.map((d: any) => [d.code, d.severity]), [["empty-catch", 2], ["dead-function", 3]], "warnings before info");
   } finally {
