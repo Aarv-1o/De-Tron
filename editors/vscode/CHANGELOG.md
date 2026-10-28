@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.7
+
+- A quieter sidebar: one bar showing the mix of problems instead of four boxes, findings as dense rows (a shape per severity, the title in full, the code and its location below), Copy fix in place of the location on hover, tabs instead of boxed switches, and at most one filled button.
+
 ## 0.0.6
 
 - The sidebar in three parts: Findings; Scanning (scan your repo, check automatically on or off, the agent's next check-in as 10 ticks); Your agent (connect Claude Code, suggest or block, how its task is going, live).

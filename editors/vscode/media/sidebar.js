@@ -24,20 +24,15 @@ function ago(time) {
 
 // ---- Findings ----
 
-function place(f) {
-  const i = f.file.lastIndexOf("/");
-  return `<span class="file">${esc(f.file.slice(i + 1))}:${f.line}</span>${i > 0 ? `<span class="dir">${esc(f.file.slice(0, i))}</span>` : ""}`;
-}
-
 function item(f) {
   const more = [f.does, f.replacedBy].filter(Boolean);
-  return `<div class="item" tabindex="0" data-open="${esc(f.file)}" data-line="${f.line}" title="${esc(f.why)}">
-    <i class="dot ${f.severity}"></i>
-    <div class="body">
-      <div class="title">${esc(f.title)}</div>
-      ${more.length ? `<div class="does">${more.map(words).join(" ")}</div>` : ""}
-      <div class="where">${place(f)}<button class="fix" data-fix="${esc(f.id)}" title="Copy what an agent needs to fix this">Copy fix</button></div>
-    </div>
+  const i = f.file.lastIndexOf("/");
+  return `<div class="row" tabindex="0" data-open="${esc(f.file)}" data-line="${f.line}" title="${esc([f.does, f.replacedBy, f.why].filter(Boolean).join("\n\n").replace(/`/g, ""))}">
+    <i class="glyph ${esc(f.severity)}" aria-label="${esc(f.severity)}"></i>
+    <span class="title">${esc(f.title)}</span>
+    <span class="loc">${esc(f.file.slice(i + 1))}:${f.line}</span>
+    ${more.length ? `<span class="does">${more.map(words).join(" ")}</span>` : ""}
+    <button class="fix" data-fix="${esc(f.id)}" title="Copy what an agent needs to fix this">Copy fix</button>
   </div>`;
 }
 
@@ -54,42 +49,43 @@ function findings() {
   const hotspots = items.filter((f) => f.rule === "hotspot");
   const of = (part) => items.filter((f) => f.part === part && f.rule !== "hotspot");
   const found = PARTS.filter(([part]) => of(part).length);
-  const empty = PARTS.filter((p) => !found.includes(p)).map(([, name]) => name.toLowerCase());
-  const counts = PARTS.map(([part, name, tone]) => `<button class="count ${of(part).length ? tone : "zero"}" data-jump="${part}"><b>${of(part).length}</b><span>${esc(name)}</span></button>`).join("");
+  const total = PARTS.reduce((n, [part]) => n + of(part).length, 0);
+  // One bar, split by how much each part has: the shape of the problem at a glance.
+  const bar = total
+    ? PARTS.filter(([part]) => of(part).length).map(([part, , tone]) => `<i class="${tone}" style="flex:${of(part).length}"></i>`).join("")
+    : `<i class="none"></i>`;
+  const tally = PARTS.map(([part, name, tone]) => `<button class="tally ${of(part).length ? "" : "zero"}" data-jump="${part}"><i class="glyph ${tone}"></i><b>${of(part).length}</b> ${esc(name)}</button>`).join("");
   const groups = found.map(([part, name]) => `<details id="${part}" ${part !== "cleanup" || found.length === 1 ? "open" : ""}><summary>${esc(name)}<span class="n">${of(part).length}</span></summary>${of(part).map(item).join("")}</details>`).join("");
   const done = data && !status?.scanning;
   return `<section class="findings">
     <header><h2>Findings</h2>
-      <div class="seg" role="group" aria-label="What to show">
-        <button data-act="toggleShow" aria-pressed="${show === "changes"}" ${show === "changes" ? "disabled" : ""}>Your changes</button>
-        <button data-act="toggleShow" aria-pressed="${show === "all"}" ${show === "all" ? "disabled" : ""}>Whole repo</button>
+      <div class="tabs" role="tablist" aria-label="What to show">
+        <button role="tab" data-act="toggleShow" aria-selected="${show === "changes"}" ${show === "changes" ? "disabled" : ""}>Your changes</button>
+        <button role="tab" data-act="toggleShow" aria-selected="${show === "all"}" ${show === "all" ? "disabled" : ""}>Whole repo</button>
       </div>
     </header>
-    <div class="counts ${status?.scanning ? "busy" : ""}">${counts}</div>
+    <div class="bar ${status?.scanning ? "busy" : ""}" aria-hidden="true">${bar}</div>
+    <div class="tallies">${tally}</div>
     <p class="note">${note()}</p>
-    ${done && !found.length ? `<div class="clear">Nothing to fix here.${show === "changes" && data.older ? ` <a data-act="toggleShow">See ${plural(data.older, "older finding")}</a>` : ""}</div>` : groups}
-    ${found.length && empty.length ? `<p class="quiet">No ${empty.join(", ").replace(/, ([^,]*)$/, " or $1")} issues.</p>` : ""}
-    ${hotspots.length ? `<details id="hotspots"><summary>Hotspots<span class="n">${hotspots.length}</span></summary><p class="quiet">Files that change often and are complex: change them in small steps and test after each.</p>${hotspots.map((h) => `<div class="item" tabindex="0" data-open="${esc(h.file)}" data-line="1"><i class="dot"></i><div class="body"><div class="where">${place({ ...h, line: 1 }).replace(":1<", "<")}</div><div class="does">${esc(h.title)}</div></div></div>`).join("")}</details>` : ""}
-    <div class="row-links">
-      <label><input type="checkbox" data-act="toggleHints" ${data?.hints ? "checked" : ""}> Show hints</label>
-      <a data-act="copyReport">Copy report for agent</a>
-    </div>
+    ${done && !total ? `<p class="clear">No problems ${show === "changes" ? "in your changes" : "in this repo"}.${show === "changes" && data.older ? ` <a data-act="toggleShow">Show ${plural(data.older, "older finding")}</a>` : ""}</p>` : groups}
+    ${hotspots.length ? `<details id="hotspots"><summary>Hotspots<span class="n">${hotspots.length}</span></summary><p class="quiet">Files that change often and are complex: change them in small steps and test after each.</p>${hotspots.map((h) => `<div class="row" tabindex="0" data-open="${esc(h.file)}" data-line="1"><i class="glyph hint"></i><span class="title">${esc(h.file)}</span><span class="does">${esc(h.title)}</span></div>`).join("")}</details>` : ""}
+    <label class="check"><input type="checkbox" data-act="toggleHints" ${data?.hints ? "checked" : ""}> Show hints Detron is less sure about</label>
   </section>`;
 }
 
 // ---- Scanning ----
 
-// Ten ticks for ten edits: filled ones are edits since the last check-in.
+// One tick per edit between check-ins: filled ones are edits since the last check-in.
 function checkInMeter() {
-  if (!agent || agent.hooks !== "connected") return `<p class="quiet">Connect your agent below to see when it checks in.</p>`;
+  if (!agent || agent.hooks !== "connected") return "";
   if (!agent.live) return `<p class="quiet">Your agent checks in every 10 edits. Waiting for its first edit.</p>`;
   const { untilCheckIn, checkInEvery } = agent.live;
   const done = checkInEvery - untilCheckIn;
   const fresh = lastDone !== undefined && done !== lastDone;
   lastDone = done;
   const ticks = Array.from({ length: checkInEvery }, (_, i) => `<i class="${i < done ? "on" : ""}${i === done - 1 && fresh ? " new" : ""}"></i>`).join("");
-  return `<div class="meter" role="img" aria-label="${done} of ${checkInEvery} edits until the agent's next check-in"><div class="ticks">${ticks}</div>
-    <p>Agent check-in in <b>${plural(untilCheckIn, "edit")}</b></p></div>`;
+  return `<div class="meter" role="img" aria-label="${done} of ${checkInEvery} edits until the agent's next check-in">
+    <p>Agent check-in in <b>${plural(untilCheckIn, "edit")}</b></p><div class="ticks" style="grid-template-columns:repeat(${checkInEvery},1fr)">${ticks}</div></div>`;
 }
 
 function scanning() {
@@ -98,9 +94,8 @@ function scanning() {
     ? `<span class="bad">Scan failed: ${esc(status.error)}</span>`
     : busy ? "Checking your code…" : `Up to date, checked ${status.lastScanAt ? ago(status.lastScanAt) : "just now"}`;
   return `<section class="scanning ${busy ? "busy" : ""}">
-    <h2>Scanning</h2>
-    <p class="state"><i class="dot ${status?.error ? "error" : busy ? "busy" : "ok"}"></i>${line}</p>
-    <button class="primary wide" data-act="rescan" ${busy ? "disabled" : ""}>${busy ? "Scanning…" : "Scan your repo"}</button>
+    <header><h2>Scanning</h2><button class="ghost" data-act="rescan" ${busy ? "disabled" : ""}>Scan your repo</button></header>
+    <p class="state"><i class="glyph ${status?.error ? "error" : busy ? "busy" : "ok"}"></i>${line}</p>
     <label class="switch"><input type="checkbox" role="switch" data-act="toggleAuto" ${status?.autoScan !== false ? "checked" : ""}><span class="track"></span>
       <span>Check automatically when files change</span></label>
     ${checkInMeter()}
@@ -121,13 +116,13 @@ function yourAgent() {
     ${agent.hooks === "connected" ? task : `<p class="quiet">${agent.hooks === "stale" ? "The agent's hooks point to an old copy of Detron, which moves when the extension updates." : "Detron tells your agent about problems right after each edit, and checks in every 10 edits."}</p>
       <button class="primary wide" data-act="connectAgent">${agent.hooks === "stale" ? "Reconnect Claude Code" : "Connect Claude Code"}</button>`}
     <div class="mode">
-      <div class="seg" role="group" aria-label="How strict">
-        <button data-mode="suggest" aria-pressed="${mode === "suggest"}" ${mode === "suggest" ? "disabled" : ""}>Suggest</button>
-        <button data-mode="block" aria-pressed="${mode === "block"}" ${mode === "block" ? "disabled" : ""}>Block</button>
+      <div class="tabs" role="tablist" aria-label="How strict">
+        <button role="tab" data-mode="suggest" aria-selected="${mode === "suggest"}" ${mode === "suggest" ? "disabled" : ""}>Suggest</button>
+        <button role="tab" data-mode="block" aria-selected="${mode === "block"}" ${mode === "block" ? "disabled" : ""}>Block</button>
       </div>
       <p class="quiet">${mode === "block" ? "Problems are sent back as errors, and a task can't finish while it has added security or crash problems." : "Detron tells the agent, and never stops it."}</p>
     </div>
-    <p class="quiet small">Cursor and Copilot CLI use the same connection.</p>
+    <p class="quiet">Cursor and Copilot CLI use the same connection.</p>
   </section>`;
 }
 
