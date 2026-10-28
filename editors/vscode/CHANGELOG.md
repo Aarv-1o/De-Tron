@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.5
+
+- Faster: scans about 45% quicker, and a save re-checks only the files that changed (about 0.5s on a mid-size repo).
+
 ## 0.0.4
 
 - A cleaner sidebar: counts at a glance, file name first, Copy fix on hover, empty groups folded into one line, Scan again / Full report / Copy report in the panel's title bar.
