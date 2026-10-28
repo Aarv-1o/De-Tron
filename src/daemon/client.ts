@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { createConnection } from "node:net";
 import { dirname } from "node:path";
 import type { HookInput, HookReply } from "../agent/hooks.ts";
-import { Sessions } from "../agent/session.ts";
+import { Sessions, type AgentStatus } from "../agent/session.ts";
 import { addressFor, buildId } from "./address.ts";
 import type { Request, Response } from "./server.ts";
 
@@ -30,6 +30,18 @@ function startBackground(root: string): void {
 }
 
 const notRunning = (error: unknown) => ["ENOENT", "ECONNREFUSED", "EPIPE", "ECONNRESET"].includes((error as NodeJS.ErrnoException).code ?? "");
+
+// The agent's task as the background Detron sees it, without starting one: undefined when no
+// agent is working in this repo.
+export async function agentStatus(root: string): Promise<AgentStatus | undefined> {
+  try {
+    const response = await ask(addressFor(root), { kind: "status" });
+    return "status" in response ? (response.status ?? undefined) : undefined;
+  } catch (error) {
+    if (notRunning(error)) return undefined;
+    throw error;
+  }
+}
 
 export async function hookReply(root: string, input: HookInput): Promise<HookReply> {
   const address = addressFor(root);

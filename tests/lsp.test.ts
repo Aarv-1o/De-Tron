@@ -103,6 +103,17 @@ test("the language server shows your changes, explains them, and offers safe fix
     await server.request("workspace/executeCommand", { command: "detron.server.toggleShow", arguments: [] });
     const whole = await server.waitFor("textDocument/publishDiagnostics", (p) => p.uri === uri, before);
     assert.deepEqual(whole.diagnostics.map((d: any) => [d.code, d.severity]), [["empty-catch", 2], ["dead-function", 3]], "warnings before info");
+
+    // The agent section: not connected, connect it, change the mode.
+    assert.deepEqual(await server.request("detron/agent", {}), { hooks: "missing", mode: "suggest", live: null });
+    await server.request("workspace/executeCommand", { command: "detron.server.connectAgent", arguments: [] });
+    await server.request("workspace/executeCommand", { command: "detron.server.setMode", arguments: ["block"] });
+    assert.deepEqual(await server.request("detron/agent", {}), { hooks: "connected", mode: "block", live: null });
+
+    // Auto-check off: the status says so.
+    const mark = server.count();
+    await server.request("workspace/executeCommand", { command: "detron.server.toggleAuto", arguments: [] });
+    assert.equal((await server.waitFor("detron/status", (p) => !p.scanning, mark)).autoScan, false);
   } finally {
     server.stop();
   }

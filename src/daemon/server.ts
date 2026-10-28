@@ -1,15 +1,15 @@
 import { rmSync } from "node:fs";
 import { createConnection, createServer, type Socket } from "node:net";
 import type { HookInput, HookReply } from "../agent/hooks.ts";
-import { Sessions } from "../agent/session.ts";
+import { Sessions, type AgentStatus } from "../agent/session.ts";
 import { addressFor, buildId } from "./address.ts";
 
 // `detron serve`: the background Detron for one repo. Hooks (and later MCP) ask it instead of
 // scanning from scratch: it keeps what each file taught us in memory, and each agent session's
 // task. Nothing is written to disk. It stops after a quiet half hour.
 
-export type Request = { kind: "hook"; build: string; input: HookInput } | { kind: "ping"; build: string };
-export type Response = { reply: HookReply } | { ok: true } | { restart: true } | { error: string };
+export type Request = { kind: "hook"; build: string; input: HookInput } | { kind: "ping"; build: string } | { kind: "status" };
+export type Response = { reply: HookReply } | { ok: true } | { restart: true } | { error: string } | { status: AgentStatus | null };
 
 const IDLE_MS = 30 * 60 * 1000;
 
@@ -44,6 +44,8 @@ export async function serve(root: string): Promise<void> {
   const answer = async (request: Request): Promise<Response> => {
     clearTimeout(idle);
     idle = setTimeout(() => server.close(() => process.exit(0)), IDLE_MS);
+    // The editor's live view asks any Detron that's running, whichever build: it only reads.
+    if (request.kind === "status") return { status: (await sessions.status()) ?? null };
     if (request.build !== build) return { restart: true }; // Detron was updated: the caller starts the new one
     if (request.kind === "ping") return { ok: true };
     return { reply: await sessions.handle(request.input) };

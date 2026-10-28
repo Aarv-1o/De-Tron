@@ -12,6 +12,14 @@ import { startTask, type Task } from "./ledger.ts";
 
 const SILENT: HookReply = { stdout: "", exitCode: 0 };
 
+export interface AgentStatus {
+  edits: number;
+  added: number; // problems this task has added so far
+  lastEditAt: number;
+  untilCheckIn: number; // edits until the next check-in
+  checkInEvery: number;
+}
+
 export class Sessions {
   private readonly cache: FileCache = new Map();
   private readonly tasks = new Map<string, { task: Task; told: Set<string> }>();
@@ -27,6 +35,14 @@ export class Sessions {
     let entry = this.tasks.get(session);
     if (!entry) this.tasks.set(session, (entry = { task: startTask(findings ?? (await this.findings())), told: new Set() }));
     return entry;
+  }
+
+  // The most recently active agent task, for the editor: no scan, just what's known.
+  async status(): Promise<AgentStatus | undefined> {
+    const latest = [...this.tasks.values()].map((e) => e.task).sort((a, b) => b.lastEditAt - a.lastEditAt)[0];
+    if (!latest) return undefined;
+    const every = (await loadConfig(this.root)).checkInEvery;
+    return { edits: latest.edits, added: latest.added, lastEditAt: latest.lastEditAt, untilCheckIn: every - (latest.edits - latest.lastCheckIn), checkInEvery: every };
   }
 
   async handle(input: HookInput): Promise<HookReply> {

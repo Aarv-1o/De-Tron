@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 
 // .detron/config.json, written by the person (or `detron init`): how strict hooks are.
 
@@ -24,4 +24,18 @@ export async function loadConfig(root: string): Promise<Config> {
     mode: read.mode === "block" ? "block" : "suggest",
     checkInEvery: Number.isInteger(read.checkInEvery) && read.checkInEvery! > 0 ? read.checkInEvery! : DEFAULTS.checkInEvery,
   };
+}
+
+// Changes the mode, keeping the rest of the file.
+export async function writeMode(root: string, mode: Config["mode"]): Promise<string> {
+  const path = join(root, ".detron/config.json");
+  let config: Record<string, unknown> = {};
+  try {
+    config = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; // unreadable: don't overwrite
+  }
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify({ ...config, mode }, null, 2)}\n`);
+  return path;
 }

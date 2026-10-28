@@ -2,6 +2,9 @@ import { readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createConnection, ProposedFeatures, TextDocumentSyncKind, type Connection } from "vscode-languageserver/node";
+import { loadConfig, writeMode } from "../agent/config.ts";
+import { hookState, init } from "../agent/init.ts";
+import { agentStatus } from "../daemon/client.ts";
 import { collectFindings } from "../findings/collect.ts";
 import { markNotUseful } from "../findings/feedback.ts";
 import { PARTS, partOf, severityOf, type Part } from "../findings/severity.ts";
@@ -22,6 +25,7 @@ export interface Options {
   show: "changes" | "all"; // "changes": only what this branch or uncommitted work added
   hints: boolean;
   clientCommands: boolean; // the Detron extension handles detron.copyFix
+  autoScan: boolean; // check again when files change; off: only when asked
 }
 
 export interface Status {
@@ -29,6 +33,8 @@ export interface Status {
   show: Options["show"];
   counts: Record<Part, number>;
   older: number; // findings left out because they're from before your changes
+  autoScan: boolean;
+  lastScanAt: number; // 0 before the first scan
   error?: string;
 }
 
@@ -45,7 +51,8 @@ async function readOrEmpty(path: string): Promise<string> {
 export function startServer(connection: Connection): void {
   let root = "";
   let rootUri = "";
-  let options: Options = { show: "changes", hints: false, clientCommands: false };
+  let options: Options = { show: "changes", hints: false, clientCommands: false, autoScan: true };
+  let lastScanAt = 0;
   let all: Finding[] = [];
   const files: FileCache = new Map(); // in memory only: each save re-reads just the changed files
   let changes: Changes = { ok: false, reason: "not scanned yet" };
@@ -64,7 +71,7 @@ export function startServer(connection: Connection): void {
   function status(scanning: boolean, error?: string): void {
     const now = shown().filter((f) => severityOf(f) !== "hint" && f.rule !== "hotspot");
     const counts = Object.fromEntries(PARTS.map((p) => [p, now.filter((f) => partOf(f) === p).length])) as Record<Part, number>;
-    void connection.sendNotification("detron/status", { scanning, show: options.show, counts, older: older(), ...(error ? { error } : {}) } satisfies Status);
+    void connection.sendNotification("detron/status", { scanning, show: options.show, counts, older: older(), autoScan: options.autoScan, lastScanAt, ...(error ? { error } : {}) } satisfies Status);
   }
 
   async function publish(): Promise<void> {
@@ -88,6 +95,7 @@ export function startServer(connection: Connection): void {
     try {
       all = await collectFindings(await scanRepo(root, files));
       changes = await changedLines(root);
+      lastScanAt = Date.now();
       await publish();
     } catch (error) {
       connection.console.error(`Detron scan failed: ${(error as Error).stack ?? error}`);
@@ -124,16 +132,20 @@ export function startServer(connection: Connection): void {
         codeLensProvider: {},
         // "detron.server.*": the editor's language client registers each of these as an editor
         // command, so they mustn't share names with the extension's own detron.* commands.
-        executeCommandProvider: { commands: ["detron.server.notUseful", "detron.server.toggleShow", "detron.server.toggleHints", "detron.server.rescan"] },
+        executeCommandProvider: { commands: ["detron.server.notUseful", "detron.server.toggleShow", "detron.server.toggleHints", "detron.server.toggleAuto", "detron.server.rescan", "detron.server.connectAgent", "detron.server.setMode"] },
       },
       serverInfo: { name: "detron" },
     };
   });
   connection.onInitialized(() => void rescan());
-  connection.onDidSaveTextDocument(() => {
+  // A save in the editor, or a file changed on disk (an agent's edit, a git checkout).
+  const changed = () => {
+    if (!options.autoScan) return;
     clearTimeout(timer);
     timer = setTimeout(() => void rescan(), SAVE_DELAY_MS);
-  });
+  };
+  connection.onDidSaveTextDocument(changed);
+  connection.onDidChangeWatchedFiles(changed);
 
   connection.onHover(({ textDocument, position }) => {
     const here = findingsOn(shown(), fileOf(textDocument.uri), position.line + 1).filter((f) => f.rule !== "hotspot");
@@ -160,7 +172,15 @@ export function startServer(connection: Connection): void {
       options.hints = !options.hints;
       return publish();
     }
+    if (command === "detron.server.toggleAuto") {
+      options.autoScan = !options.autoScan;
+      if (options.autoScan) return rescan(); // catch up on what changed while it was off
+      return status(false);
+    }
     if (command === "detron.server.rescan") return rescan();
+    // Not printed to the editor: init's own messages are for the terminal.
+    if (command === "detron.server.connectAgent") return void (await init(root, process.argv[1]!, undefined));
+    if (command === "detron.server.setMode") return void (await writeMode(root, (args?.[0] === "block" ? "block" : "suggest")));
     return undefined;
   });
 
@@ -170,6 +190,12 @@ export function startServer(connection: Connection): void {
     // Why "your changes" is everything, if it is: "not a git repo", "no commits yet".
     ...(changes.ok ? {} : { noChanges: changes.reason }),
     items: shown().map((f) => ({ id: f.id, rule: f.rule, part: partOf(f), severity: severityOf(f), file: f.file, line: f.line, title: f.title, why: f.why, does: f.plain?.does, replacedBy: f.plain?.replacedBy })),
+  }));
+  // The agent: are Detron's hooks set up, which mode, and how its task is going right now.
+  connection.onRequest("detron/agent", async () => ({
+    hooks: await hookState(root),
+    mode: (await loadConfig(root)).mode,
+    live: (await agentStatus(root)) ?? null,
   }));
   connection.onRequest("detron/report", ({ format }: { format: "agent" | "person" }) =>
     format === "agent" ? formatAgent(root, shown(), options.hints) : formatForPerson(shown(), older()));

@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { writeMode } from "./config.ts";
 
 // `detron init`: sets up Detron's hooks for Claude Code in a repo (Cursor and Copilot CLI load
 // Claude Code's hooks too). In .claude/settings.local.json: it names where Detron is on this
@@ -52,13 +53,21 @@ export async function init(root: string, entry: string, mode: "suggest" | "block
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(withDetronHooks(settings, command), null, 2)}\n`);
   const done = [`Claude Code hooks: ${path} (session start, before and after each edit, at the end)`];
-  if (mode) {
-    const configPath = join(root, ".detron/config.json");
-    let config: Record<string, unknown> = {};
-    if (existsSync(configPath)) config = JSON.parse(await readFile(configPath, "utf8")) as Record<string, unknown>;
-    await mkdir(dirname(configPath), { recursive: true });
-    await writeFile(configPath, `${JSON.stringify({ ...config, mode }, null, 2)}\n`);
-    done.push(`Mode: ${mode} (${configPath})`);
-  }
+  if (mode) done.push(`Mode: ${mode} (${await writeMode(root, mode)})`);
   return done;
+}
+
+// Are Detron's hooks set up here, and does the Detron they run still exist (an extension
+// update moves it)?
+export async function hookState(root: string): Promise<"connected" | "missing" | "stale"> {
+  let settings: Settings;
+  try {
+    settings = JSON.parse(await readFile(join(root, ".claude/settings.local.json"), "utf8")) as Settings;
+  } catch {
+    return "missing"; // no settings, or unreadable: either way Detron's hooks aren't running
+  }
+  const command = Object.values(settings.hooks ?? {}).flat().flatMap((g) => g.hooks).find(isDetron)?.command;
+  if (!command) return "missing";
+  const path = /"([^"]+)"/.exec(command)?.[1];
+  return path && existsSync(path) ? "connected" : "stale";
 }

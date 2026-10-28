@@ -13,12 +13,14 @@ export interface Task {
   lastCheckIn: number; // edit count at the last check-in
   editedFiles: Set<string>;
   stopsBlocked: number; // times finishing was blocked: give up after a couple, so it can't loop
+  lastEditAt: number; // for the editor's live view
+  added: number; // problems (not clean-up) this task had added at its last edit
 }
 
 export function startTask(findings: Finding[]): Task {
   const started = new Map<string, number>();
   for (const f of findings) started.set(keyOf(f), (started.get(keyOf(f)) ?? 0) + 1);
-  return { started, edits: 0, lastCheckIn: 0, editedFiles: new Set(), stopsBlocked: 0 };
+  return { started, edits: 0, lastCheckIn: 0, editedFiles: new Set(), stopsBlocked: 0, lastEditAt: 0, added: 0 };
 }
 
 // Findings now that weren't there when the task started (counting duplicates: a second

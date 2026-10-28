@@ -39,7 +39,9 @@ export const isEdit = (input: HookInput) => EDIT_TOOLS.test(input.tool_name ?? "
 export function afterEdit(input: HookInput, root: string, task: Task, told: Set<string>, findings: Finding[], config: Config): HookReply {
   if (input.tool_input?.file_path) task.editedFiles.add(relative(root, input.tool_input.file_path).replace(/\\/g, "/"));
   task.edits++;
+  task.lastEditAt = Date.now();
   const added = newSince(task, findings).filter(matters).sort(worstFirst);
+  task.added = added.length;
   const fresh = added.filter((f) => !told.has(keyOf(f)));
   for (const f of fresh) told.add(keyOf(f));
   const lines: string[] = [];
