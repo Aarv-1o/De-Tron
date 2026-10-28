@@ -1,0 +1,43 @@
+/* VS Code's own theme colors, so the panel matches any theme. */
+* { box-sizing: border-box; }
+body { padding: 0 12px 16px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 10px; }
+.top h2 { margin: 0; font-size: 1.05em; font-weight: 600; }
+.pill { font-size: 0.85em; padding: 2px 8px; border-radius: 10px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); white-space: nowrap; }
+.pill.err { background: var(--vscode-inputValidation-errorBackground, #5a1d1d); }
+.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+button { font: inherit; cursor: pointer; border-radius: 4px; padding: 6px 8px; border: 1px solid var(--vscode-button-border, transparent); }
+button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+button.primary:hover { background: var(--vscode-button-hoverBackground); }
+button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; margin-top: 8px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 4px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; color: var(--vscode-descriptionForeground); }
+.seg button[aria-pressed="true"] { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.note { color: var(--vscode-descriptionForeground); font-size: 0.9em; margin: 8px 0 4px; }
+details { margin-top: 10px; }
+summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; text-transform: uppercase; font-size: 0.8em; letter-spacing: 0.04em; font-weight: 600; color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground)); padding: 4px 0; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "›"; display: inline-block; width: 10px; transition: transform 0.1s; }
+details[open] > summary::before { transform: rotate(90deg); }
+summary .n { margin-left: auto; font-weight: 500; color: var(--vscode-descriptionForeground); text-transform: none; }
+.none { color: var(--vscode-descriptionForeground); font-size: 0.9em; padding: 2px 0 2px 16px; }
+.item { display: grid; grid-template-columns: 10px 1fr; gap: 6px; padding: 6px 6px 6px 4px; border-radius: 4px; cursor: pointer; }
+.item:hover { background: var(--vscode-list-hoverBackground); }
+.dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; background: var(--vscode-descriptionForeground); }
+.dot.error { background: var(--vscode-editorError-foreground); }
+.dot.warning { background: var(--vscode-editorWarning-foreground); }
+.dot.info { background: var(--vscode-editorInfo-foreground); }
+.title { line-height: 1.35; overflow-wrap: anywhere; }
+/* Two lines in the list; the whole sentence is in the hover card and the copied fix. */
+.does { color: var(--vscode-descriptionForeground); font-size: 0.9em; margin-top: 2px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+code { font-family: var(--vscode-editor-font-family, monospace); font-size: 0.95em; }
+.item > div { min-width: 0; }
+.where span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; direction: rtl; text-align: left; }
+.where { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 3px; font-size: 0.85em; color: var(--vscode-textLink-foreground); }
+.where button { flex: none; padding: 1px 6px; font-size: 0.95em; background: transparent; color: var(--vscode-textLink-foreground); border: 1px solid var(--vscode-widget-border, transparent); }
+.foot { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); }
+.foot a { color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; }
+.foot a:hover { text-decoration: underline; }
+label { display: flex; gap: 6px; align-items: center; margin-top: 10px; color: var(--vscode-descriptionForeground); cursor: pointer; }

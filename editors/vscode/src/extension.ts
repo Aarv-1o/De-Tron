@@ -1,18 +1,11 @@
 import { join } from "node:path";
 import * as vscode from "vscode";
 import { LanguageClient, State, TransportKind, type ServerOptions } from "vscode-languageclient/node";
+import { Sidebar, type Status } from "./sidebar.ts";
 
 // The Detron extension for VS Code and its forks (Cursor, Windsurf, Antigravity): starts the
 // Detron language server, which does all the work, and adds what LSP can't: the status bar,
-// copying a fix to the clipboard, and the settings.
-
-interface Status {
-  scanning: boolean;
-  show: "changes" | "all";
-  counts: { security: number; breaks: number; database: number; cleanup: number };
-  older: number;
-  error?: string;
-}
+// the sidebar, copying a fix to the clipboard, and the settings.
 
 let client: LanguageClient | undefined;
 
@@ -53,10 +46,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void vscode.window.showInformationMessage("Detron: copied. Paste it into your agent's chat.");
     }),
     vscode.commands.registerCommand("detron.toggleShow", () => run("detron.toggleShow")),
+    vscode.commands.registerCommand("detron.toggleHints", () => run("detron.toggleHints")),
     vscode.commands.registerCommand("detron.rescan", () => run("detron.rescan")),
   );
+  const sidebar = new Sidebar(context.extensionUri, () => client);
+  context.subscriptions.push(vscode.window.registerWebviewViewProvider("detron.panel", sidebar));
   client.onNotification("detron/status", (s: Status) => {
     [bar.text, bar.tooltip] = statusText(s);
+    void sidebar.update(s);
   });
   client.onDidChangeState(({ newState }) => {
     if (newState === State.Stopped) [bar.text, bar.tooltip] = ["$(error) Detron: stopped", "The Detron server stopped. See View → Output → Detron for why."];

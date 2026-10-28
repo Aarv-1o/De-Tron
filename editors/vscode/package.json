@@ -5,24 +5,87 @@
   "version": "0.0.1",
   "publisher": "detron",
   "license": "MIT",
-  "author": { "name": "Aarv Singh Chauhan", "email": "aarvsinghchauhan@gmail.com" },
-  "repository": { "type": "git", "url": "https://github.com/Aarv-1o/De-Tron" },
-  "engines": { "vscode": "^1.91.0" },
-  "categories": ["Linters"],
-  "activationEvents": ["onStartupFinished"],
+  "author": {
+    "name": "Aarv Singh Chauhan",
+    "email": "aarvsinghchauhan@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aarv-1o/De-Tron"
+  },
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "categories": [
+    "Linters"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-      { "command": "detron.toggleShow", "title": "Detron: Switch between your changes and the whole repo" },
-      { "command": "detron.rescan", "title": "Detron: Check again" }
+      {
+        "command": "detron.toggleShow",
+        "title": "Detron: Switch between your changes and the whole repo"
+      },
+      {
+        "command": "detron.rescan",
+        "title": "Detron: Check again"
+      },
+      {
+        "command": "detron.toggleHints",
+        "title": "Detron: Show or hide hints"
+      }
     ],
     "configuration": {
       "title": "Detron",
       "properties": {
-        "detron.show": { "type": "string", "enum": ["changes", "all"], "default": "changes", "enumDescriptions": ["Only what this branch or your uncommitted work added", "Everything in the repo"], "description": "Which findings to show." },
-        "detron.hints": { "type": "boolean", "default": false, "description": "Also show hints: findings Detron is less sure about." },
-        "detron.serverCommand": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Run your own Detron instead of the bundled one, e.g. [\"node\", \"--import\", \"tsx\", \"D:/detron/De-Tron/src/cli/bin.ts\", \"lsp\"]. Empty: the bundled one." }
+        "detron.show": {
+          "type": "string",
+          "enum": [
+            "changes",
+            "all"
+          ],
+          "default": "changes",
+          "enumDescriptions": [
+            "Only what this branch or your uncommitted work added",
+            "Everything in the repo"
+          ],
+          "description": "Which findings to show."
+        },
+        "detron.hints": {
+          "type": "boolean",
+          "default": false,
+          "description": "Also show hints: findings Detron is less sure about."
+        },
+        "detron.serverCommand": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Run your own Detron instead of the bundled one, e.g. [\"node\", \"--import\", \"tsx\", \"D:/detron/De-Tron/src/cli/bin.ts\", \"lsp\"]. Empty: the bundled one."
+        }
       }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "detron",
+          "title": "Detron",
+          "icon": "resources/detron.svg"
+        }
+      ]
+    },
+    "views": {
+      "detron": [
+        {
+          "type": "webview",
+          "id": "detron.panel",
+          "name": "Findings"
+        }
+      ]
     }
   },
   "scripts": {
