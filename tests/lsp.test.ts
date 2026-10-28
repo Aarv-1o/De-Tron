@@ -87,6 +87,12 @@ test("the language server shows your changes, explains them, and offers safe fix
     assert.deepEqual(actions[0].edit.changes[uri][0].range, { start: { line: 5, character: 0 }, end: { line: 8, character: 0 } });
     assert.match(actions[1].command.arguments[0], /^`calcTax\(total\)`: it returns/);
 
+    const list = await server.request("detron/findings", {});
+    assert.deepEqual(list.items.map((i: any) => [i.part, i.severity, i.file, i.line, i.does]), [["cleanup", "info", "index.js", 6, "`calcTax(total)`: it returns `total * 0.18`."]]);
+    assert.equal(list.older, 1);
+    assert.match(await server.request("detron/report", { format: "person" }), /^Clean-up \(1\)\n {2}index\.js:6/);
+    assert.match(await server.request("detron/explain", { id: list.items[0].id }), /## Dead functions \(1\)/);
+
     const before = server.count();
     await server.request("workspace/executeCommand", { command: "detron.toggleShow", arguments: [] });
     const whole = await server.waitFor("textDocument/publishDiagnostics", (p) => p.uri === uri, before);

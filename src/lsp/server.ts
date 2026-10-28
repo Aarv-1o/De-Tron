@@ -6,6 +6,8 @@ import { collectFindings } from "../findings/collect.ts";
 import { markNotUseful } from "../findings/feedback.ts";
 import { PARTS, partOf, severityOf, type Part } from "../findings/severity.ts";
 import type { Finding } from "../findings/types.ts";
+import { formatAgent } from "../report/agent.ts";
+import { formatForPerson } from "../report/brief.ts";
 import { explainFindings, findingsOn } from "../report/explain.ts";
 import { changedLines, isInChanges, type Changes } from "../scan/changes.ts";
 import { scanRepo } from "../scan/scan.ts";
@@ -52,14 +54,15 @@ export function startServer(connection: Connection): void {
   let again = false;
 
   const shown = () => all.filter((f) => (options.hints || f.confidence !== "maybe") && (options.show === "all" || isInChanges(f, changes)));
+  // Findings left out because they're from before your changes.
+  const older = () => (options.show === "changes" ? all.filter((f) => !isInChanges(f, changes)).length : 0);
   const fileOf = (uri: string) => relative(root, fileURLToPath(uri)).replace(/\\/g, "/");
   const linesOf = (file: string) => texts.get(file) ?? [];
 
   function status(scanning: boolean, error?: string): void {
     const now = shown().filter((f) => severityOf(f) !== "hint" && f.rule !== "hotspot");
     const counts = Object.fromEntries(PARTS.map((p) => [p, now.filter((f) => partOf(f) === p).length])) as Record<Part, number>;
-    const older = options.show === "changes" ? all.filter((f) => !isInChanges(f, changes)).length : 0;
-    void connection.sendNotification("detron/status", { scanning, show: options.show, counts, older, ...(error ? { error } : {}) } satisfies Status);
+    void connection.sendNotification("detron/status", { scanning, show: options.show, counts, older: older(), ...(error ? { error } : {}) } satisfies Status);
   }
 
   async function publish(): Promise<void> {
@@ -117,7 +120,7 @@ export function startServer(connection: Connection): void {
         hoverProvider: true,
         codeActionProvider: true,
         codeLensProvider: {},
-        executeCommandProvider: { commands: ["detron.notUseful", "detron.toggleShow", "detron.rescan"] },
+        executeCommandProvider: { commands: ["detron.notUseful", "detron.toggleShow", "detron.toggleHints", "detron.rescan"] },
       },
       serverInfo: { name: "detron" },
     };
@@ -149,8 +152,24 @@ export function startServer(connection: Connection): void {
       options.show = options.show === "changes" ? "all" : "changes";
       return publish();
     }
+    if (command === "detron.toggleHints") {
+      options.hints = !options.hints;
+      return publish();
+    }
     if (command === "detron.rescan") return rescan();
     return undefined;
+  });
+
+  // For the editor's sidebar: the list, a whole report, one finding's full explanation.
+  connection.onRequest("detron/findings", () => ({
+    show: options.show, hints: options.hints, older: older(),
+    items: shown().map((f) => ({ id: f.id, rule: f.rule, part: partOf(f), severity: severityOf(f), file: f.file, line: f.line, title: f.title, why: f.why, does: f.plain?.does, replacedBy: f.plain?.replacedBy })),
+  }));
+  connection.onRequest("detron/report", ({ format }: { format: "agent" | "person" }) =>
+    format === "agent" ? formatAgent(root, shown(), options.hints) : formatForPerson(shown(), older()));
+  connection.onRequest("detron/explain", ({ id }: { id: string }) => {
+    const f = all.find((x) => x.id === id);
+    return f ? explainFindings(root, [f]) : "";
   });
   connection.listen();
 }
