@@ -6,6 +6,7 @@ import type { LineChange } from "../rules/codebase/differences.ts";
 import type { LineFinding } from "../rules/line/types.ts";
 import type { ScanResult } from "../scan/scan.ts";
 import { GUIDES } from "./guide.ts";
+import { applyIgnores } from "./ignores.ts";
 import { describe, likelyReplacement, type Candidate } from "./plain.ts";
 import { WHOLE_FILE_RULES, type Finding, type Place } from "./types.ts";
 
@@ -155,7 +156,7 @@ function addPlain(findings: Finding[], r: ScanResult): void {
 
 export async function collectFindings(r: ScanResult): Promise<Finding[]> {
   const texts = await readTexts(r.root, r.index.files);
-  const findings = [...copyFindings(r), ...deadCodeFindings(r), ...crossStackFindings(r), ...hygieneFindings(r, texts)];
+  const findings = applyIgnores([...copyFindings(r), ...deadCodeFindings(r), ...crossStackFindings(r), ...hygieneFindings(r, texts)], texts);
   addPlain(findings, r);
   const findingsIn = (file: string) => findings.filter((f) => f.file === file && f.confidence !== "maybe").length;
   return [...findings, ...hotspotFindings(r, findingsIn)];
