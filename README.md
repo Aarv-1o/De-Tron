@@ -6,7 +6,8 @@ It watches what your agent writes, catches duplicate code, dead code and bloat,
 gets the agent to clean it up, proves nothing broke, and explains what changed.
 
 > Status: early build. Not on npm yet. Works today: copied code, dead code, frontend/backend
-> mismatches, security, crash risks, database checks, code hygiene and hotspots.
+> mismatches, security, crash risks, database checks, code hygiene and hotspots, in the
+> terminal and in your editor.
 
 ## Try it
 
@@ -17,10 +18,36 @@ npm install
 npm run detron -- scan path/to/your/repo
 ```
 
+- `--changed` shows only what your changes added: this branch since it left main, or your
+  uncommitted work on main. Grouped as Security, Will break, Database, Clean-up, with the code
+  explained in plain words
+- `--brief` prints one line per error or warning, at most 10: what an agent should get (a few
+  hundred tokens, not thousands)
 - `--all` also shows hints (less certain findings)
 - `--agent` prints findings as steps an AI agent can follow: what, why, how to fix, whether
   it's safe to do alone, and how to check
 - `--json` prints the same findings, machine-readable
+- `detron explain src/app.ts:42` gives everything about the findings on one line
+
+To silence one finding, write why: `// detron-ignore empty-catch: the cache is optional`
+(`#` in Python) on its line or the line above. Without a reason, it doesn't count.
+
+## In your editor
+
+`editors/vscode` is an extension for VS Code, Cursor, Windsurf and Antigravity. Build it with
+`npm install && npm run package` in that folder, then install the `.vsix` (Extensions →
+"..." → Install from VSIX). Other editors (JetBrains, Zed, Neovim) can run `detron lsp` as a
+language server.
+
+- Squiggles on **your changes** by default; click the status bar for the whole repo
+- Hover a squiggle: what the code does in plain words, what can go wrong, how to fix and check.
+  Built from the code itself, so it costs no AI credits
+- Security and crash risks are errors, things that will break are warnings, clean-up is info
+  (faded for unused code). Editors' agents read errors and warnings, so they see real problems
+  while they work, and nothing is spent on clean-up
+- Light bulb: delete unused code (the only automatic fix), copy the fix for your agent, ignore
+  with a reason, or "not useful" (a rule marked on more than 10% of its findings becomes a hint)
+- A line at the top of hotspot files: make small changes there, and test after each
 
 It finds:
 

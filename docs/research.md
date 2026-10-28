@@ -324,3 +324,46 @@ applied to another app in the same repo; upload temp paths as user paths.
 Known gaps: Supabase/Firebase row-level security rules aren't read (they live in the database
 or console, not the repo); NoSQL injection is only flagged for whole-body filters, not single
 fields; ownership checks done in a service layer called from the handler aren't followed.
+
+## In the editor, without annoying people or costing agents (Oct 2026)
+
+What forums and studies say, and what Detron does about it:
+
+- **Trust dies with false alarms.** Google keeps a check only if under 10% of its findings get
+  "not useful"; above that it's turned off until fixed. When tools report a lot, little gets fixed
+  (16% of 9,473 FindBugs warnings in one Google fixit). Detron: a "not useful" button; a rule
+  over 10% (and at least 2 clicks) becomes a hint for the repo.
+- **Showing everything buries people.** Snyk's answer is "delta findings": only what your change
+  added. Detron: "your changes" is the default in the editor, and `scan --changed` in the CLI.
+- **Agents drown in lint output.** In Cursor, a lint-heavy project filled the agent's context,
+  the agent re-read it in a loop, and 5% of an Ultra plan went in minutes; `read_lints` still
+  has no cap (Oct 2026). Agents also loop "fixing" lints and undoing their own fix. Detron: at
+  most 20 squiggles per file, your changes only, one-line messages, and `--brief` caps an agent
+  at 10 lines.
+- **Severity decides what agents read.** Cursor's agent reads only Error and Warning diagnostics,
+  for open files. Detron: security and crashes are errors, things that will break are warnings,
+  clean-up is info, so people see it and no credits go to it.
+- **Hooks should be silent when clean.** Claude Code shows a hook's stderr to Claude only on
+  exit 2, and caps hook output at 10,000 characters. For the coming hooks: print nothing when an
+  edit added nothing, and a few short lines when it did.
+
+Plain words are built from the syntax tree (what a function checks, calls, changes and
+returns), plus a "likely replacement" for unused code: a used function that touches the same
+fields and calls. No AI. It's only as clear as the code's names, and it can't know purpose.
+
+On Escrows-AI the whole repo's findings in `--brief` form are 1,120 characters (about 280
+tokens) against 26,800 for `--agent`.
+
+Found by dogfooding: Detron flagged its own extension's `activate`/`deactivate` as dead (VS
+Code calls them by name), and "route nothing calls" was a warning though it breaks nothing.
+
+Not verified yet: the extension inside a real VS Code (the workspace can't download VS Code);
+the server was tested end to end over stdio, from source and as bundled.
+
+Sources: [Google, CACM 2018](https://cacm.acm.org/magazines/2018/4/226371-lessons-from-building-static-analysis-tools-at-google/pdf),
+[Snyk delta findings](https://snyk.io/fr/blog/unburdening-developers-from-vulnerability-fatigue-with-snyk-delta-findings/),
+[Cursor: large lint output](https://forum.cursor.com/t/large-lint-output-causes-repeated-context-summarization/164399),
+[Cursor: LSP diagnostics the agent reads](https://forum.cursor.com/t/does-agents-iterate-on-lint-errors-work-with-custom-third-party-lsp-servers-or-only-built-in-linters/168705),
+[Cursor: lint loop](https://forum.cursor.com/t/unrestricted-loop-of-linter-errors/36436),
+[Claude Code hooks](https://code.claude.com/docs/en/hooks),
+[MCP token bloat](https://thenewstack.io/how-to-reduce-mcp-token-bloat/).

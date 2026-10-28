@@ -30,7 +30,8 @@ One core engine. Thin adapters on top, so adding an agent means adding a small a
 
 | Layer | What it does | Works with |
 |---|---|---|
-| CLI (`detron scan`, `detron check`) | Any agent that can run a command can use it | Every agent |
+| CLI (`detron scan`, `--changed`, `--brief`, `explain`) | Any agent that can run a command can use it | Every agent |
+| Language server (`detron lsp`) + extension | Squiggles, plain-word cards and safe fixes in the editor; editors' agents read the errors and warnings | VS Code, Cursor, Windsurf, Antigravity (extension); JetBrains, Zed, Neovim (LSP) |
 | MCP server | Tools like "find existing function" and "check my changes" | Claude Code, Cursor, Copilot, Codex, Gemini CLI, Windsurf, Cline… |
 | Hooks | Run automatically after every edit | Claude Code, Cursor, Codex, Gemini CLI |
 | Instruction files | `detron init` adds a short block to AGENTS.md / CLAUDE.md / Cursor rules | Every agent that reads them |
