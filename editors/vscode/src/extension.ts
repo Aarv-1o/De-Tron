@@ -31,7 +31,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const settings = vscode.workspace.getConfiguration("detron");
   client = new LanguageClient("detron", "Detron", serverOptions(context), {
     documentSelector: [{ scheme: "file" }],
-    initializationOptions: { show: settings.get("show"), hints: settings.get("hints"), clientCommands: true },
+    initializationOptions: { show: settings.get("show"), hints: settings.get("hints"), autoScan: settings.get("autoScan", true), clientCommands: true },
+    // Files changed on disk too (an agent's edits, a checkout), not only saves in the editor.
+    synchronize: { fileEvents: vscode.workspace.createFileSystemWatcher("**/*.{js,jsx,ts,tsx,mjs,cjs,py,astro,prisma,sql,json}") },
   });
 
   const bar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);

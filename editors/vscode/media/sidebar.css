@@ -1,63 +1,107 @@
-/* VS Code's own theme colors and font, so the panel matches any theme. */
+/* VS Code's own theme colors and font, so the panel matches any theme. The one accent is the
+   theme's focus color; severity uses the editor's own error/warning/info colors. */
 * { box-sizing: border-box; }
-body { padding: 10px 12px 16px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); line-height: 1.4; }
+:root { --accent: var(--vscode-focusBorder); --line: var(--vscode-widget-border, var(--vscode-panel-border)); --muted: var(--vscode-descriptionForeground); }
+body { padding: 0 0 20px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); line-height: 1.4; }
 button { font: inherit; cursor: pointer; }
-button:focus-visible, .item:focus-visible, a:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+button:focus-visible, .item:focus-visible, a:focus-visible, input:focus-visible + .track { outline: 1px solid var(--accent); outline-offset: 1px; }
 a { color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; }
 a:hover { text-decoration: underline; }
+h2 { margin: 0; font-size: 1.05em; font-weight: 600; }
+.quiet { color: var(--muted); font-size: 0.92em; margin: 8px 0 0; }
+.small { font-size: 0.85em; }
+.note { color: var(--muted); font-size: 0.9em; margin: 8px 0 0; }
+code { font-family: var(--vscode-editor-font-family, monospace); font-size: 0.92em; color: var(--vscode-textPreformat-foreground, inherit); }
 
-/* Counts at a glance */
-.summary { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.summary.busy { opacity: 0.6; }
-.chip { display: flex; align-items: baseline; gap: 6px; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); background: var(--vscode-editorWidget-background, transparent); color: var(--vscode-descriptionForeground); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chip b { font-size: 1.25em; font-weight: 600; color: var(--vscode-foreground); }
-.chip.error { border-left: 3px solid var(--vscode-editorError-foreground); }
-.chip.warning { border-left: 3px solid var(--vscode-editorWarning-foreground); }
-.chip.info { border-left: 3px solid var(--vscode-editorInfo-foreground); }
-.chip.zero b { color: var(--vscode-descriptionForeground); font-weight: 400; }
-.chip:hover { background: var(--vscode-list-hoverBackground); }
-.state { margin: 6px 0 10px; font-size: 0.9em; color: var(--vscode-descriptionForeground); display: flex; align-items: center; gap: 6px; }
-.state .bad { color: var(--vscode-errorForeground); }
-.spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--vscode-descriptionForeground); border-top-color: transparent; animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+/* Three sections, one after another */
+section { position: relative; padding: 14px 12px 16px; border-top: 1px solid var(--line); }
+section:first-child { border-top: 0; }
+section > h2 { margin-bottom: 10px; }
+.findings > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 
-/* Your changes / Whole repo */
-.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 4px; overflow: hidden; }
-.seg button { border: 0; padding: 5px 6px; background: transparent; color: var(--vscode-descriptionForeground); }
+/* Buttons and switches */
+.primary { border: 0; border-radius: 4px; padding: 7px 10px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.primary:hover:not([disabled]) { background: var(--vscode-button-hoverBackground); }
+.primary[disabled] { opacity: 0.6; cursor: default; }
+.wide { width: 100%; margin-top: 10px; }
+.seg { display: inline-grid; grid-auto-flow: column; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { border: 0; padding: 3px 10px; background: transparent; color: var(--muted); font-size: 0.92em; }
 .seg button[aria-pressed="true"] { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); cursor: default; }
 .seg button:not([disabled]):hover { color: var(--vscode-foreground); }
-.note { color: var(--vscode-descriptionForeground); font-size: 0.9em; margin: 6px 0 2px; }
-.quiet { color: var(--vscode-descriptionForeground); font-size: 0.9em; margin: 10px 0 0; }
+.switch { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; margin-top: 12px; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; pointer-events: none; }
+.switch .track { width: 28px; height: 16px; border-radius: 8px; background: var(--vscode-input-background, var(--line)); border: 1px solid var(--line); position: relative; transition: background 0.15s; }
+.switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); transition: transform 0.15s, background 0.15s; }
+.switch input:checked + .track { background: var(--accent); border-color: var(--accent); }
+.switch input:checked + .track::after { transform: translateX(12px); background: var(--vscode-button-foreground, #fff); }
+.row-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; font-size: 0.92em; }
+.row-links label { display: flex; gap: 6px; align-items: center; color: var(--muted); cursor: pointer; }
 
-/* Groups */
+/* Findings: counts, groups, items */
+.counts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; transition: opacity 0.2s; }
+.counts.busy { opacity: 0.55; }
+.count { display: flex; align-items: baseline; gap: 6px; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--line); border-left-width: 3px; background: transparent; color: var(--muted); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.count b { font-size: 1.3em; font-weight: 600; color: var(--vscode-foreground); }
+.count.error { border-left-color: var(--vscode-editorError-foreground); }
+.count.warning { border-left-color: var(--vscode-editorWarning-foreground); }
+.count.info { border-left-color: var(--vscode-editorInfo-foreground); }
+.count.zero b { font-weight: 400; color: var(--muted); }
+.count:hover { background: var(--vscode-list-hoverBackground); }
+.clear { padding: 18px 4px 4px; text-align: center; color: var(--muted); }
 details { margin-top: 12px; }
-summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; text-transform: uppercase; font-size: 0.78em; letter-spacing: 0.06em; font-weight: 700; color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground)); padding: 2px 0 4px; }
+summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; font-weight: 600; padding: 2px 0 4px; }
 summary::-webkit-details-marker { display: none; }
-summary::before { content: "›"; display: inline-block; width: 10px; font-size: 1.3em; line-height: 1; transition: transform 0.1s; }
+summary::before { content: "›"; display: inline-block; width: 10px; font-size: 1.3em; line-height: 1; transition: transform 0.12s; }
 details[open] > summary::before { transform: rotate(90deg); }
-summary .n { margin-left: auto; font-weight: 600; padding: 0 6px; border-radius: 8px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); letter-spacing: 0; }
-
-/* One finding */
+summary .n { margin-left: auto; font-weight: 600; padding: 0 7px; border-radius: 8px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); font-size: 0.85em; }
 .item { display: grid; grid-template-columns: 10px 1fr; gap: 8px; padding: 7px 6px; border-radius: 4px; cursor: pointer; }
 .item:hover, .item:focus-visible { background: var(--vscode-list-hoverBackground); }
-.dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: var(--vscode-descriptionForeground); }
+.dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: var(--muted); flex: none; }
 .dot.error { background: var(--vscode-editorError-foreground); }
 .dot.warning { background: var(--vscode-editorWarning-foreground); }
 .dot.info { background: var(--vscode-editorInfo-foreground); }
+.dot.ok { background: var(--vscode-testing-iconPassed, #3fb950); }
+.dot.busy { background: var(--accent); }
 .body { min-width: 0; }
 .title { overflow-wrap: anywhere; }
-.does { color: var(--vscode-descriptionForeground); font-size: 0.9em; margin-top: 3px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-code { font-family: var(--vscode-editor-font-family, monospace); font-size: 0.92em; color: var(--vscode-textPreformat-foreground, inherit); }
+/* Two lines in the list; the whole sentence is in the hover card and the copied fix. */
+.does { color: var(--muted); font-size: 0.9em; margin-top: 3px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .where { display: flex; gap: 8px; align-items: baseline; margin-top: 3px; font-size: 0.88em; min-width: 0; }
 .file { color: var(--vscode-textLink-foreground); white-space: nowrap; }
-.dir { color: var(--vscode-descriptionForeground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; min-width: 0; }
-/* Shown on hover or focus, so the list stays calm. */
+.dir { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; min-width: 0; }
 .fix { margin-left: auto; flex: none; visibility: hidden; padding: 1px 8px; border-radius: 3px; border: 0; background: var(--vscode-button-background); color: var(--vscode-button-foreground); font-size: 0.95em; }
 .item:hover .fix, .item:focus-within .fix { visibility: visible; }
-.fix:hover { background: var(--vscode-button-hoverBackground); }
 
-.clear { text-align: center; padding: 24px 8px 8px; display: grid; gap: 8px; }
-.clear .big { font-size: 1.1em; }
-.foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); font-size: 0.92em; }
-.foot label { display: flex; gap: 6px; align-items: center; color: var(--vscode-descriptionForeground); cursor: pointer; }
+/* Scanning: the state, the button, the check-in meter */
+.state { display: flex; align-items: center; gap: 8px; margin: 0; }
+.state .dot { margin-top: 0; }
+.state .bad { color: var(--vscode-errorForeground); }
+/* The one moving thing while a scan runs: a band sweeping across the section. */
+.scanning.busy::before { content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: sweep 1.2s ease-in-out infinite; }
+@keyframes sweep { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+.meter { margin-top: 16px; }
+.meter p { margin: 6px 0 0; font-size: 0.92em; color: var(--muted); }
+.meter p b { color: var(--vscode-foreground); font-weight: 600; }
+.ticks { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+.ticks i { height: 10px; border-radius: 2px; background: var(--line); transition: background 0.3s; }
+.ticks i.on { background: var(--accent); }
+.ticks i.new { animation: land 0.5s ease-out; }
+@keyframes land { from { transform: scaleY(0.2); opacity: 0.3; } to { transform: scaleY(1); opacity: 1; } }
+
+/* Your agent */
+.who { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.who .name { font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 0.88em; color: var(--muted); }
+.pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.pill.ok i, .pill.live i { background: var(--vscode-testing-iconPassed, #3fb950); }
+.pill.live { color: var(--vscode-foreground); }
+.pill.live i { animation: pulse 1.6s ease-in-out infinite; }
+.pill.warn i { background: var(--vscode-editorWarning-foreground); }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--vscode-testing-iconPassed, #3fb950) 60%, transparent); } 50% { box-shadow: 0 0 0 4px transparent; } }
+.task { margin: 8px 0 0; }
+.task b { color: var(--vscode-editorWarning-foreground); font-weight: 600; }
+.mode { margin-top: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

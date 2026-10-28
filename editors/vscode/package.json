@@ -2,7 +2,7 @@
   "name": "detron",
   "displayName": "Detron",
   "description": "Finds the mess AI coding agents leave: security holes, crash risks, broken frontend/backend calls, copied and dead code. Explained in plain words, right in the editor.",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "publisher": "detron",
   "license": "MIT",
   "author": {
@@ -77,6 +77,11 @@
           },
           "default": [],
           "description": "Run your own Detron instead of the bundled one, e.g. [\"node\", \"--import\", \"tsx\", \"D:/detron/De-Tron/src/cli/bin.ts\", \"lsp\"]. Empty: the bundled one."
+        },
+        "detron.autoScan": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check again whenever files change (your saves and an agent's edits). Off: only when you click Scan your repo."
         }
       }
     },

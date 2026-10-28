@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.6
+
+- The sidebar in three parts: Findings; Scanning (scan your repo, check automatically on or off, the agent's next check-in as 10 ticks); Your agent (connect Claude Code, suggest or block, how its task is going, live).
+- Edits an agent makes on disk trigger a check too, not only saves in the editor.
+
 ## 0.0.5
 
 - Faster: scans about 45% quicker, and a save re-checks only the files that changed (about 0.5s on a mid-size repo).

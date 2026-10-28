@@ -2,19 +2,25 @@ import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import type { LanguageClient } from "vscode-languageclient/node";
 
-// The Detron panel in the activity bar: scan, switch between your changes and the whole repo,
-// findings by part (each opens its line), and the report for a person or an agent.
+// The Detron panel in the activity bar, in three parts: findings (by part, each opens its line),
+// scanning (scan now, automatic checks on or off, the agent's next check-in), and the agent
+// (connect Claude Code, suggest or block, how its task is going).
 
 export interface Status {
   scanning: boolean;
   show: "changes" | "all";
   counts: { security: number; breaks: number; database: number; cleanup: number };
   older: number;
+  autoScan: boolean;
+  lastScanAt: number;
   error?: string;
 }
 
+const AGENT_POLL_MS = 4000; // the agent edits files on its own: refresh what it's doing
+
 type FromPanel =
-  | { type: "ready" | "rescan" | "toggleShow" | "toggleHints" | "copyReport" | "openReport" | "settings" }
+  | { type: "ready" | "rescan" | "toggleShow" | "toggleHints" | "toggleAuto" | "connectAgent" | "copyReport" | "openReport" | "settings" }
+  | { type: "setMode"; mode: "suggest" | "block" }
   | { type: "open"; file: string; line: number }
   | { type: "copyFix"; id: string };
 
@@ -35,6 +41,13 @@ export class Sidebar implements vscode.WebviewViewProvider {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${view.webview.cspSource}; script-src 'nonce-${nonce}';">
 <link rel="stylesheet" href="${style}"></head><body><div id="app"></div><script nonce="${nonce}" src="${script}"></script></body></html>`;
     view.webview.onDidReceiveMessage((m: FromPanel) => this.handle(m));
+    const poll = setInterval(() => void (view.visible && this.agent()), AGENT_POLL_MS);
+    view.onDidDispose(() => clearInterval(poll));
+  }
+
+  private async agent(): Promise<void> {
+    const info = await this.client()?.sendRequest("detron/agent", {});
+    if (info) void this.view?.webview.postMessage({ type: "agent", info });
   }
 
   async update(status: Status): Promise<void> {
@@ -42,6 +55,7 @@ export class Sidebar implements vscode.WebviewViewProvider {
     if (!this.view) return;
     void this.view.webview.postMessage({ type: "status", status });
     if (!status.scanning && !status.error) void this.view.webview.postMessage({ type: "findings", data: await this.client()?.sendRequest("detron/findings", {}) });
+    await this.agent();
   }
 
   // The panel's title-bar buttons run these too.
@@ -55,6 +69,20 @@ export class Sidebar implements vscode.WebviewViewProvider {
     if (m.type === "rescan") await command("detron.server.rescan");
     if (m.type === "toggleShow") await command("detron.server.toggleShow");
     if (m.type === "toggleHints") await command("detron.server.toggleHints");
+    if (m.type === "toggleAuto") await command("detron.server.toggleAuto");
+    if (m.type === "setMode") {
+      await client.sendRequest("workspace/executeCommand", { command: "detron.server.setMode", arguments: [m.mode] });
+      await this.agent();
+    }
+    if (m.type === "connectAgent") {
+      try {
+        await command("detron.server.connectAgent");
+        void vscode.window.showInformationMessage("Detron: Claude Code is connected. Start a new Claude Code session in this folder to use it.");
+      } catch (error) {
+        void vscode.window.showErrorMessage(`Detron: couldn't connect Claude Code. ${(error as Error).message}`);
+      }
+      await this.agent();
+    }
     if (m.type === "settings") await vscode.commands.executeCommand("workbench.action.openSettings", "detron");
     if (m.type === "open") {
       const folder = vscode.workspace.workspaceFolders?.[0];
