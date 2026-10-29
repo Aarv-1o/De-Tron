@@ -56,7 +56,7 @@ function values(fn: FunctionInfo): Set<string> {
 const distinctive = (v: string) => /[^\w]/.test(v);
 
 // "_strip_json_state" and "stripJsonState" both become "strip json state".
-const nameWords = (name: string) =>
+export const nameWords = (name: string) =>
   name.replace(/^_+/, "").split(/_|(?<=[a-z0-9])(?=[A-Z])/).map((w) => w.toLowerCase()).join(" ");
 
 class Clusters {

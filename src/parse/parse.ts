@@ -48,9 +48,14 @@ export async function parseSource(source: string, language: LanguageId): Promise
 
 // Returns undefined for files in a language Detron doesn't support yet.
 export async function parseFile(path: string): Promise<ParsedFile | undefined> {
+  if (!grammarForFile(path)) return undefined;
+  return parseText(path, await readFile(path, "utf8"));
+}
+
+// Code that isn't on disk (yet): what an agent is about to write to `path`.
+export async function parseText(path: string, raw: string): Promise<ParsedFile | undefined> {
   const grammar = grammarForFile(path);
   if (!grammar) return undefined;
-  const raw = await readFile(path, "utf8");
   const source = grammar.preprocess ? grammar.preprocess(raw) : raw;
   const tree = await parseSource(source, grammar.id);
   return { path, language: grammar.id, source, ...(source !== raw ? { original: raw } : {}), tree };

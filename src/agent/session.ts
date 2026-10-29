@@ -1,9 +1,13 @@
+import { readFile } from "node:fs/promises";
+import { relative } from "node:path";
 import { collectFindings } from "../findings/collect.ts";
 import type { Finding } from "../findings/types.ts";
 import type { FileCache } from "../index/fileScan.ts";
+import { buildIndex } from "../index/repo.ts";
 import { scanRepo } from "../scan/scan.ts";
 import { loadConfig } from "./config.ts";
-import { afterEdit, atStop, isEdit, type HookInput, type HookReply } from "./hooks.ts";
+import { afterEdit, atStop, beforeEdit, contentAfter, isEdit, type HookInput, type HookReply } from "./hooks.ts";
+import { findExisting, newFunctions } from "./reuse.ts";
 import { startTask, type Task } from "./ledger.ts";
 
 // One repo's agent sessions: each session's task, and one cache of what every file taught us,
@@ -45,6 +49,23 @@ export class Sessions {
     return { edits: latest.edits, added: latest.added, lastEditAt: latest.lastEditAt, untilCheckIn: every - (latest.edits - latest.lastCheckIn), checkInEvery: every };
   }
 
+  // New functions in what the agent is about to write that the repo already has.
+  private async reuseCheck(input: HookInput, told: Set<string>): Promise<HookReply> {
+    const path = input.tool_input?.file_path;
+    if (!path) return SILENT;
+    const before = await readFile(path, "utf8").catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return ""; // a new file
+      throw error;
+    });
+    const after = contentAfter(input, before);
+    if (after === undefined) return SILENT;
+    const candidates = await newFunctions(path, before, after);
+    if (!candidates.length) return SILENT;
+    const file = relative(this.root, path).replace(/\\/g, "/");
+    const matches = findExisting(candidates, await buildIndex(this.root, this.cache), file, input.tool_name === "Write");
+    return beforeEdit(matches, told, await loadConfig(this.root));
+  }
+
   async handle(input: HookInput): Promise<HookReply> {
     const event = input.hook_event_name;
     if (event === "SessionStart") {
@@ -53,8 +74,8 @@ export class Sessions {
       return SILENT;
     }
     if (event === "PreToolUse" && isEdit(input)) {
-      await this.taskOf(input.session_id);
-      return SILENT;
+      const { told } = await this.taskOf(input.session_id);
+      return this.reuseCheck(input, told);
     }
     if (event === "PostToolUse" && isEdit(input)) {
       const { task, told } = await this.taskOf(input.session_id);

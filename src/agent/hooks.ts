@@ -4,6 +4,7 @@ import type { Finding } from "../findings/types.ts";
 import { briefLine } from "../report/brief.ts";
 import type { Config } from "./config.ts";
 import { fixedSince, keyOf, newSince, type Task } from "./ledger.ts";
+import type { ExistingMatch } from "./reuse.ts";
 
 // What Detron says at each moment of an agent's task. Short on purpose: the agent pays for
 // every word, so it hears only problems this task added, once each, and nothing when clean.
@@ -13,7 +14,14 @@ export interface HookInput {
   session_id: string;
   cwd?: string;
   tool_name?: string;
-  tool_input?: { file_path?: string };
+  tool_input?: {
+    file_path?: string;
+    content?: string; // Write
+    old_string?: string; // Edit
+    new_string?: string;
+    replace_all?: boolean;
+    edits?: { old_string: string; new_string: string; replace_all?: boolean }[]; // MultiEdit
+  };
   stop_hook_active?: boolean;
 }
 
@@ -92,4 +100,39 @@ export function atStop(input: HookInput, task: Task, findings: Finding[], config
     ? `Detron: this task added ${plural(real.length, "problem")} (${parts.map(([p, n]) => `${n} ${p === "breaks" ? "will break" : p}`).join(", ")})${fixed ? ` and fixed ${fixed}` : ""}. See them with \`detron scan --changed\` or in the Detron sidebar.`
     : `Detron: this task added no new problems${fixed ? ` and fixed ${fixed}` : ""}.`;
   return json({ systemMessage: summary });
+}
+
+// The file as it will be after this edit, or undefined if the edit can't be applied to it as it
+// is now (then Claude Code will refuse the edit itself).
+export function contentAfter(input: HookInput, before: string): string | undefined {
+  const t = input.tool_input ?? {};
+  if (input.tool_name === "Write") return t.content;
+  const edits = input.tool_name === "MultiEdit" ? (t.edits ?? []) : input.tool_name === "Edit" ? [{ old_string: t.old_string ?? "", new_string: t.new_string ?? "", replace_all: t.replace_all }] : [];
+  let text = before;
+  for (const e of edits) {
+    if (!e.old_string || !text.includes(e.old_string)) return undefined;
+    text = e.replace_all ? text.split(e.old_string).join(e.new_string) : text.replace(e.old_string, () => e.new_string);
+  }
+  return edits.length ? text : undefined;
+}
+
+// Before an edit that adds functions the repo already has: say so, once per pair. Block mode
+// refuses only exact copies; anything less sure is a note.
+export function beforeEdit(matches: ExistingMatch[], told: Set<string>, config: Config): HookReply {
+  const fresh = matches.filter((m) => !told.has(`reuse|${m.candidate}|${m.existing.file}:${m.existing.name}`));
+  for (const m of fresh) told.add(`reuse|${m.candidate}|${m.existing.file}:${m.existing.name}`);
+  if (!fresh.length) return SILENT;
+  // An exported function can be imported as it is; one inside a component or file needs moving
+  // to a shared place first.
+  const advice = (m: ExistingMatch) => (m.existing.exported ? "import it" : "move it to a shared file and use it from both places");
+  const line = (m: ExistingMatch) => `- \`${m.candidate}\`: \`${m.existing.name}\` in ${m.existing.file}:${m.existing.startLine}${m.uses ? ` (used in ${plural(m.uses, "place")})` : ""} has ${m.why}. Instead of a copy, ${advice(m)}.`;
+  const message = [
+    `Detron: before you add ${fresh.length === 1 ? "this function" : "these functions"}, the repo already has ${fresh.length === 1 ? "one that does this" : "ones that do this"}:`,
+    ...fresh.map(line),
+    "Reuse it, or say why a new one is needed.",
+  ].join("\n");
+  if (config.mode === "block" && fresh.some((m) => m.confidence === "sure")) {
+    return json({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: message } });
+  }
+  return json({ hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: message } });
 }

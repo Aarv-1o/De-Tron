@@ -12,7 +12,7 @@ export interface DeadFunction {
 }
 
 // Exports that frameworks call by name (Next.js, Remix, SvelteKit, editor extensions...).
-const FRAMEWORK_EXPORTS = new Set([
+export const FRAMEWORK_EXPORTS = new Set([
   "getServerSideProps", "getStaticProps", "getStaticPaths", "generateMetadata", "generateStaticParams",
   "loader", "action", "meta", "links", "headers", "middleware", "load",
   "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS",
