@@ -64,3 +64,15 @@ async function walk(root: string, dir = root): Promise<string[]> {
 export async function listRepoFiles(root: string): Promise<string[]> {
   return ((await gitFiles(root)) ?? (await walk(root))).sort();
 }
+
+// The app a file belongs to: the deepest folder above it with a package.json or Python project file.
+export function appOf(files: string[]): (file: string) => string {
+  const roots = files
+    .filter((f) => /(^|\/)(package\.json|pyproject\.toml|requirements\.txt|manage\.py)$/.test(f))
+    .map((f) => (f.includes("/") ? f.slice(0, f.lastIndexOf("/") + 1) : ""))
+    .sort((a, b) => b.length - a.length);
+  return (file) => roots.find((r) => file.startsWith(r)) ?? "";
+}
+
+// Code written by a generator (API clients, protobuf): not something to reuse or tidy by hand.
+export const isGenerated = (path: string) => /\.gen\.[cm]?[jt]sx?$|(^|\/)(generated|__generated__)\/|_pb2(_grpc)?\.py$|\.pb\.[jt]s$/.test(path);

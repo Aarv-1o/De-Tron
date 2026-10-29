@@ -1,3 +1,4 @@
+import { appOf } from "../../index/files.ts";
 import type { FunctionInfo } from "../../index/functions.ts";
 import type { Confidence } from "../confidence.ts";
 import type { FullRoute } from "../crossStack/resolve.ts";
@@ -34,15 +35,6 @@ export interface EndpointInput {
   texts: Map<string, string>; // source of the files, for named handlers
   rateLimitLibrary: boolean; // express-rate-limit, slowapi... imported somewhere
   allFiles: string[]; // to tell apps apart in a repo of several (examples, monorepos)
-}
-
-// The app a file belongs to: the deepest folder above it with a package.json or Python project file.
-function appOf(files: string[]): (file: string) => string {
-  const roots = files
-    .filter((f) => /(^|\/)(package\.json|pyproject\.toml|requirements\.txt|manage\.py)$/.test(f))
-    .map((f) => (f.includes("/") ? f.slice(0, f.lastIndexOf("/") + 1) : ""))
-    .sort((a, b) => b.length - a.length);
-  return (file) => roots.find((r) => file.startsWith(r)) ?? "";
 }
 
 // The code that handles a route: inline, or the named function (controller) it points at.

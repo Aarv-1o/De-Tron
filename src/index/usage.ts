@@ -50,3 +50,15 @@ export function extractUsage(parsed: ParsedFile): FileUsage {
   count(root);
   return { imports: supportFor(parsed.language).extractImports(root), names };
 }
+
+// How often each name is used across the repo, not counting the definitions of `functions` or
+// the lines that import them: "used in 2 places" means two places that use it.
+export function nameUses(usage: Map<string, FileUsage>, functions: { name?: string | undefined }[]): Map<string, number> {
+  const uses = new Map<string, number>();
+  for (const u of usage.values()) {
+    for (const [name, n] of u.names) uses.set(name, (uses.get(name) ?? 0) + n);
+    for (const i of u.imports) for (const name of i.names) uses.set(name, (uses.get(name) ?? 0) - 1);
+  }
+  for (const fn of functions) if (fn.name) uses.set(fn.name, (uses.get(fn.name) ?? 0) - 1);
+  return uses;
+}

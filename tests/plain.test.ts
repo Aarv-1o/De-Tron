@@ -32,7 +32,7 @@ export function handleDeath(player: Player) {
   });
   const dead = found.find((f) => f.rule === "dead-function" && f.title.includes("resetPlayer"))!;
   assert.equal(dead.plain?.does, "`resetPlayer(player)`: when `player.health` is 0 or less, it calls `player.die()` and sets `player.health` to 100.");
-  assert.equal(dead.plain?.replacedBy, "Probably replaced by `handleDeath` (player.ts:11): it also uses `health` and `die()`, and it's used in 3 places.");
+  assert.equal(dead.plain?.replacedBy, "Probably replaced by `handleDeath` (player.ts:11): it also uses `health` and `die()`, and it's used in 2 places.");
 });
 
 test("a guard clause reads as the condition the rest runs under", async () => {

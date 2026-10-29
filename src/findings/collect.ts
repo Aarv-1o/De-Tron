@@ -1,5 +1,6 @@
 import type { FunctionInfo } from "../index/functions.ts";
 import { escapeRegex, readTexts } from "../index/texts.ts";
+import { nameUses } from "../index/usage.ts";
 import type { DuplicateGroup } from "../rules/codebase/duplicates.ts";
 import { worthFlagging } from "../rules/codebase/hotspots.ts";
 import type { LineChange } from "../rules/codebase/differences.ts";
@@ -139,9 +140,7 @@ function hotspotFindings(r: ScanResult, findingsIn: (file: string) => number): F
 function addPlain(findings: Finding[], r: ScanResult): void {
   const byFile = new Map<string, typeof r.facts>();
   for (const f of r.facts) byFile.set(f.file, [...(byFile.get(f.file) ?? []), f]);
-  const uses = new Map<string, number>();
-  for (const usage of r.index.usage.values()) for (const [name, n] of usage.names) uses.set(name, (uses.get(name) ?? 0) + n);
-  for (const fn of r.facts) if (fn.name) uses.set(fn.name, (uses.get(fn.name) ?? 0) - 1); // its own definition
+  const uses = nameUses(r.index.usage, r.facts);
   const deadAt = new Set(r.dead.functions.map((d) => `${d.fn.file}:${d.fn.startLine}`));
   const candidates: Candidate[] = r.facts.filter((f) => f.name && !deadAt.has(`${f.file}:${f.startLine}`)).map((facts) => ({ facts, uses: Math.max(0, uses.get(facts.name!) ?? 0) }));
   for (const finding of findings) {
