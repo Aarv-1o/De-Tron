@@ -385,3 +385,41 @@ Sources: [Google, CACM 2018](https://cacm.acm.org/magazines/2018/4/226371-lesson
   run from the project's folder: hooks now run a built single file with plain `node`.
 - **Real run.** Claude Code 2.1.312, asked to add an `eval()` route: after the edit it got
   "index.js:14 error detron/code-eval: eval() runs code from req.body" and passed it on.
+
+## Reuse before writing (Oct 2026)
+
+Before each agent edit, the functions it adds are compared with the repo by the same copy
+finder as `detron scan`. Tested by treating every function in five repos as if it were being
+written now, and reading every match:
+
+| Repo | Functions | Notes, first try | Notes, final |
+|---|---|---|---|
+| Escrows-AI | 703 | 66 | 38 |
+| FastAPI template | 429 | 15 | 2 |
+| React RealWorld | 162 | 7 | 0 |
+| ignite | 405 | 16 | 4 |
+| Travscape | 64 | 19 | 9 |
+
+Kept (real): escapeRegex in 6 files, timeAgo in 4, getUserPlan, planFromProductId /
+planFromPriceId, connectGmail and connectWhatsApp written twice, Travscape's second
+orchestrator, Python `_strip_json_state` vs JS `stripJsonState`, ignite's openLinkInBrowser
+redefined in a screen.
+
+Dropped (false alarms) and why:
+- A helper written inside the function being edited shares its code (createAdminAuth/adminAuth).
+- Callbacks in objects and class methods are wiring, not something to import (onSettled,
+  beforeLoad, componentWillMount, Redux props).
+- Event handlers, framework hooks and conventions share names on purpose (handleSubmit,
+  mapStateToProps); one-word names are too common.
+- Several names shared with one other file is an interface (dodo.js and stripe.js both have
+  isConfigured, createCheckout, parseWebhook).
+- Another app in the repo can't be imported (a frontend page vs an email template package).
+- deleteUser (a function) vs DeleteUser (a component); generated API clients (`.gen.ts`).
+- Tiny generic functions match by being generic (ignite's `$heading` style objects): small copies
+  count only with distinctive text in them.
+
+Also fixed: "used in N places" counted import lines as uses.
+
+Real run: Claude Code, asked to write `commentAge` without reading other files, got "`timeAgo` in
+src/utils/time.js:1 has the same steps and the same text ("just now", "m ago", "h ago")", read it,
+and replaced its copy with a call to `timeAgo`.

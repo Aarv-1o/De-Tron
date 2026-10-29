@@ -42,12 +42,16 @@ node dist/detron.mjs init path/to/your/repo
 That sets up Claude Code's hooks in your repo (`.claude/settings.local.json`; Cursor and
 Copilot CLI read them too). Then, in every agent session:
 
+- **Before it writes a function the repo already has**, the agent hears where the existing one is
+  ("`timeAgo` in utils/time.js:1, used in 9 places, has the same code: import it"), so it reuses
+  instead of adding a copy
 - **After each edit** the agent hears only problems this task added, once each, in a few lines,
   and nothing when the edit is clean. Old issues in the repo never nag
 - **Every 10 edits** a check-in: what to focus on
 - **At the end** a one-line summary for you
-- **Suggest mode** (default) only tells the agent. `init --mode block` also sends new security
-  or crash problems back as errors and won't let the task finish while they're there
+- **Suggest mode** (default) only tells the agent. `init --mode block` also refuses exact copies,
+  sends new security or crash problems back as errors, and won't let the task finish while
+  they're there
 
 A background Detron keeps the repo in memory (never on disk), so a check after an edit takes
 about a tenth of a second. It starts on first use and stops after a quiet half hour.

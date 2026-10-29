@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.8
+
+- Connected agents now hear, before writing a function, when the repo already has one that does the same job.
+
 ## 0.0.7
 
 - A quieter sidebar: one bar showing the mix of problems instead of four boxes, findings as dense rows (a shape per severity, the title in full, the code and its location below), Copy fix in place of the location on hover, tabs instead of boxed switches, and at most one filled button.
